@@ -4,7 +4,7 @@ import { PointerLockControls, Html, Text } from '@react-three/drei'
 import * as THREE from 'three'
 
 const MAP_W = 100
-const PLAYER_RADIUS = 1.2
+const PLAYER_RADIUS = 1.15
 const WALL_HEIGHT = 6
 const PICKUP_COUNT = 18
 const REQUIRED_SCORE = 10
@@ -13,10 +13,10 @@ const ENEMY_MAX = 5
 
 const WALLS = [
   { x: 0, z: -48, w: 96, d: 4 },
-  { x: 0, z: 48, w: 96, d: 4 },
   { x: -48, z: 0, w: 4, d: 96 },
   { x: 48, z: 0, w: 4, d: 96 },
-
+  { x: 0, z: 48, w: 60, d: 4 },
+  { x: -32, z: 48, w: 28, d: 4 },
   { x: -18, z: 0, w: 4, d: 58 },
   { x: 16, z: -8, w: 4, d: 72 },
   { x: 0, z: 18, w: 52, d: 4 },
@@ -27,7 +27,8 @@ const WALLS = [
   { x: -4, z: -38, w: 26, d: 4 }
 ]
 
-const EXIT_ZONE = { x: 40, z: -40, w: 8, d: 8 }
+const EXIT_ZONE = { x: 40, z: 46, w: 12, d: 4 }
+const EXIT_DOOR = { x: 40, z: 48, w: 10, d: 0.8 }
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value))
@@ -47,37 +48,47 @@ function collidesWithWalls(x, z) {
 }
 
 function randomFreeSpot() {
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 500; i++) {
     const x = THREE.MathUtils.randFloatSpread(80)
     const z = THREE.MathUtils.randFloatSpread(80)
-    const blocked = collidesWithWalls(x, z) || rectContains(EXIT_ZONE, x, z, 3)
+    const blocked =
+      collidesWithWalls(x, z) ||
+      rectContains(EXIT_ZONE, x, z, 4) ||
+      rectContains({ x: 0, z: -42, w: 26, d: 10 }, x, z, 3)
+
     if (!blocked) return { x, z }
   }
+
   return { x: 0, z: 0 }
 }
 
 function Ground() {
+  const tiles = []
+
+  for (let x = -50; x < 50; x += 5) {
+    for (let z = -50; z < 50; z += 5) {
+      const dark = (Math.floor((x + 50) / 5) + Math.floor((z + 50) / 5)) % 2 === 0
+      tiles.push(
+        <mesh key={`${x}-${z}`} position={[x + 2.5, 0, z + 2.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[5, 5]} />
+          <meshStandardMaterial color={dark ? '#2c2c30' : '#111114'} />
+        </mesh>
+      )
+    }
+  }
+
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[110, 110, 20, 20]} />
-        <meshStandardMaterial color="#3d3a3a" />
-      </mesh>
-
-      <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0, 42, 32]} />
-        <meshBasicMaterial
-          color="#5c1515"
-          side={THREE.DoubleSide}
-          transparent
-          opacity={0.28}
-        />
+      {tiles}
+      <mesh position={[0, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[110, 110]} />
+        <meshStandardMaterial color="#111" transparent opacity={0.25} />
       </mesh>
     </group>
   )
 }
 
-function Walls() {
+function Walls({ canExit }) {
   return (
     <group>
       {WALLS.map((wall, i) => (
@@ -88,14 +99,99 @@ function Walls() {
           receiveShadow
         >
           <boxGeometry args={[wall.w, WALL_HEIGHT, wall.d]} />
-          <meshStandardMaterial color={i % 2 ? '#7b1e1e' : '#5a1010'} />
+          <meshStandardMaterial color={i % 2 ? '#6b1717' : '#4b0f0f'} />
         </mesh>
       ))}
 
-      <mesh position={[EXIT_ZONE.x, 2.5, EXIT_ZONE.z]}>
-        <boxGeometry args={[EXIT_ZONE.w, 5, EXIT_ZONE.d]} />
-        <meshStandardMaterial color="#207d36" transparent opacity={0.35} />
+      <mesh position={[EXIT_DOOR.x, 2.5, EXIT_DOOR.z]}>
+        <boxGeometry args={[EXIT_DOOR.w, 5, EXIT_DOOR.d]} />
+        <meshStandardMaterial
+          color={canExit ? '#39d66f' : '#7a2020'}
+          emissive={canExit ? '#39d66f' : '#220000'}
+          emissiveIntensity={canExit ? 1.2 : 0.15}
+          transparent
+          opacity={0.9}
+        />
       </mesh>
+
+      <mesh position={[EXIT_ZONE.x, 0.05, EXIT_ZONE.z]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[EXIT_ZONE.w, EXIT_ZONE.d]} />
+        <meshBasicMaterial
+          color={canExit ? '#56ff8b' : '#8a2b2b'}
+          transparent
+          opacity={0.7}
+          side={THREE.DoubleSide}
+        />
+      </mesh>
+
+      <Text
+        position={[EXIT_DOOR.x, 5.8, EXIT_DOOR.z + 0.3]}
+        fontSize={1.6}
+        color={canExit ? '#7dff9d' : '#ff8d8d'}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {canExit ? 'EXIT OPEN' : `COLLECT ${REQUIRED_SCORE} POINTS`}
+      </Text>
+    </group>
+  )
+}
+
+function StageArea() {
+  return (
+    <group>
+      <mesh position={[0, 0.8, -42]} receiveShadow castShadow>
+        <boxGeometry args={[24, 1.6, 8]} />
+        <meshStandardMaterial color="#5b3a1e" />
+      </mesh>
+
+      <mesh position={[-8, 3.2, -46.1]}>
+        <boxGeometry args={[5, 6, 0.4]} />
+        <meshStandardMaterial color="#7a1010" />
+      </mesh>
+
+      <mesh position={[0, 3.2, -46.1]}>
+        <boxGeometry args={[5, 6, 0.4]} />
+        <meshStandardMaterial color="#5c0d0d" />
+      </mesh>
+
+      <mesh position={[8, 3.2, -46.1]}>
+        <boxGeometry args={[5, 6, 0.4]} />
+        <meshStandardMaterial color="#7a1010" />
+      </mesh>
+
+      <Text position={[0, 5.8, -41]} fontSize={2.1} color="#ffd65a">
+        FREDBEAR PIZZA
+      </Text>
+
+      <group position={[-6, 1.8, -42]}>
+        <mesh castShadow>
+          <capsuleGeometry args={[0.9, 1.7, 4, 8]} />
+          <meshStandardMaterial color="#b28c55" />
+        </mesh>
+        <mesh position={[0, 1.35, 0.72]}>
+          <sphereGeometry args={[0.18, 12, 12]} />
+          <meshBasicMaterial color="black" />
+        </mesh>
+        <mesh position={[0.42, 1.35, 0.72]}>
+          <sphereGeometry args={[0.18, 12, 12]} />
+          <meshBasicMaterial color="black" />
+        </mesh>
+      </group>
+
+      <group position={[0, 1.8, -42]}>
+        <mesh castShadow>
+          <capsuleGeometry args={[0.9, 1.7, 4, 8]} />
+          <meshStandardMaterial color="#8b61c5" />
+        </mesh>
+      </group>
+
+      <group position={[6, 1.8, -42]}>
+        <mesh castShadow>
+          <capsuleGeometry args={[0.9, 1.7, 4, 8]} />
+          <meshStandardMaterial color="#d89b43" />
+        </mesh>
+      </group>
     </group>
   )
 }
@@ -111,7 +207,19 @@ function DecorativeProps() {
       [-6, 34],
       [24, -34],
       [-28, 4],
-      [6, 32]
+      [6, 32],
+      [18, 8],
+      [-8, 8]
+    ],
+    []
+  )
+
+  const posters = useMemo(
+    () => [
+      { x: -46, y: 3, z: -20, r: Math.PI / 2, color: '#ffe082', text: 'PARTY!' },
+      { x: -46, y: 3, z: 16, r: Math.PI / 2, color: '#ff9e80', text: 'SMILE!' },
+      { x: 46, y: 3, z: -8, r: -Math.PI / 2, color: '#ce93d8', text: 'PLAY!' },
+      { x: 46, y: 3, z: 28, r: -Math.PI / 2, color: '#80cbc4', text: 'PIZZA!' }
     ],
     []
   )
@@ -131,13 +239,24 @@ function DecorativeProps() {
         </group>
       ))}
 
-      <mesh position={[0, 2.5, -43]}>
-        <boxGeometry args={[18, 5, 1]} />
-        <meshStandardMaterial color="#ffcc44" emissive="#aa5522" />
-      </mesh>
+      {posters.map((p, i) => (
+        <group key={i} position={[p.x, p.y, p.z]} rotation={[0, p.r, 0]}>
+          <mesh>
+            <boxGeometry args={[0.3, 4, 6]} />
+            <meshStandardMaterial color="#eee3c8" />
+          </mesh>
+          <Text position={[0.2, 0, 0]} rotation={[0, -Math.PI / 2, 0]} fontSize={0.9} color={p.color}>
+            {p.text}
+          </Text>
+        </group>
+      ))}
 
-      <Text position={[0, 2.7, -42.3]} fontSize={2.3} color="black">
-        FREDBEAR PIZZA TEST
+      <mesh position={[0, 2.6, 44]}>
+        <boxGeometry args={[16, 4, 1]} />
+        <meshStandardMaterial color="#ffcc44" emissive="#8a4d00" emissiveIntensity={0.8} />
+      </mesh>
+      <Text position={[0, 2.9, 44.7]} fontSize={1.8} color="black">
+        MAIN HALL
       </Text>
     </group>
   )
@@ -158,10 +277,13 @@ function Pickup({ item }) {
   if (item.collected) return null
 
   return (
-    <mesh ref={ref} position={[item.x, 1.1, item.z]} castShadow>
-      <octahedronGeometry args={[0.7, 0]} />
-      <meshStandardMaterial color="#ffd84d" emissive="#b87900" />
-    </mesh>
+    <group ref={ref} position={[item.x, 1.1, item.z]}>
+      <mesh castShadow>
+        <octahedronGeometry args={[0.7, 0]} />
+        <meshStandardMaterial color="#ffd84d" emissive="#b87900" emissiveIntensity={1.2} />
+      </mesh>
+      <pointLight intensity={0.8} distance={4} color="#ffd84d" />
+    </group>
   )
 }
 
@@ -172,36 +294,66 @@ function Enemy({ enemy }) {
     if (!ref.current) return
     ref.current.position.set(enemy.x, 1.5, enemy.z)
     ref.current.rotation.y = enemy.rotation
-    ref.current.position.y += Math.sin(state.clock.elapsedTime * 4 + enemy.id) * 0.06
+    ref.current.position.y += Math.sin(state.clock.elapsedTime * 4 + enemy.phase) * 0.06
   })
 
   return (
     <group ref={ref}>
       <mesh castShadow>
-        <capsuleGeometry args={[0.8, 1.5, 4, 8]} />
-        <meshStandardMaterial color="#d5a46b" />
+        <capsuleGeometry args={[0.9, 1.7, 4, 8]} />
+        <meshStandardMaterial
+          color={enemy.variant === 0 ? '#cba06f' : enemy.variant === 1 ? '#ad7cff' : '#e2a24e'}
+          emissive={enemy.alert ? '#441111' : '#000000'}
+          emissiveIntensity={enemy.alert ? 0.8 : 0}
+        />
       </mesh>
 
-      <mesh position={[0, 1.2, 0.72]}>
-        <sphereGeometry args={[0.16, 12, 12]} />
-        <meshBasicMaterial color="black" />
+      <mesh position={[0, 1.25, 0.78]}>
+        <sphereGeometry args={[0.18, 12, 12]} />
+        <meshBasicMaterial color={enemy.alert ? '#ff4040' : 'black'} />
       </mesh>
 
-      <mesh position={[0.45, 1.25, 0.62]}>
-        <sphereGeometry args={[0.16, 12, 12]} />
-        <meshBasicMaterial color="black" />
+      <mesh position={[0.45, 1.25, 0.68]}>
+        <sphereGeometry args={[0.18, 12, 12]} />
+        <meshBasicMaterial color={enemy.alert ? '#ff4040' : 'black'} />
       </mesh>
 
-      <mesh position={[0.2, 2.2, 0]} rotation={[0, 0, -0.2]}>
-        <coneGeometry args={[0.35, 0.8, 12]} />
+      <mesh position={[0.2, 2.25, 0]} rotation={[0, 0, -0.2]}>
+        <coneGeometry args={[0.38, 0.9, 12]} />
         <meshStandardMaterial color="#7a4f1d" />
       </mesh>
 
-      <mesh position={[-0.2, 2.2, 0]} rotation={[0, 0, 0.2]}>
-        <coneGeometry args={[0.35, 0.8, 12]} />
+      <mesh position={[-0.2, 2.25, 0]} rotation={[0, 0, 0.2]}>
+        <coneGeometry args={[0.38, 0.9, 12]} />
         <meshStandardMaterial color="#7a4f1d" />
       </mesh>
+
+      <pointLight intensity={enemy.alert ? 1.2 : 0.3} distance={5} color={enemy.alert ? '#ff4040' : '#552222'} />
     </group>
+  )
+}
+
+function EnemyBillboard({ enemies, player }) {
+  return (
+    <>
+      {enemies.map((enemy) => {
+        const dist = Math.hypot(player.x - enemy.x, player.z - enemy.z)
+        if (dist > 10) return null
+
+        return (
+          <Text
+            key={`label-${enemy.id}`}
+            position={[enemy.x, 4.2, enemy.z]}
+            fontSize={0.8}
+            color="#ff7777"
+            anchorX="center"
+            anchorY="middle"
+          >
+            {dist < 3 ? 'ATTENTO!' : 'MOSTRO'}
+          </Text>
+        )
+      })}
+    </>
   )
 }
 
@@ -217,7 +369,7 @@ function Minimap({ player, pickups, enemies }) {
         top: 16,
         width: size,
         height: size,
-        background: 'rgba(0,0,0,0.72)',
+        background: 'rgba(0,0,0,0.78)',
         border: '2px solid #ffffff33',
         borderRadius: 10,
         overflow: 'hidden'
@@ -244,7 +396,8 @@ function Minimap({ player, pickups, enemies }) {
           top: size / 2 + (EXIT_ZONE.z - EXIT_ZONE.d / 2) * scale,
           width: EXIT_ZONE.w * scale,
           height: EXIT_ZONE.d * scale,
-          border: '2px solid #56e17f'
+          background: '#2ecc71',
+          boxShadow: '0 0 12px #2ecc71'
         }}
       />
 
@@ -275,7 +428,8 @@ function Minimap({ player, pickups, enemies }) {
             borderRadius: 999,
             left: size / 2 + e.x * scale - 4,
             top: size / 2 + e.z * scale - 4,
-            background: '#ff5c5c'
+            background: '#ff5c5c',
+            boxShadow: '0 0 10px #ff5c5c'
           }}
         />
       ))}
@@ -309,7 +463,44 @@ function Minimap({ player, pickups, enemies }) {
   )
 }
 
-function HUD({ game, onRestart }) {
+function Fists({ attackAnim }) {
+  const leftRef = useRef()
+  const rightRef = useRef()
+
+  useFrame(() => {
+    const t = attackAnim.current
+    if (!leftRef.current || !rightRef.current) return
+
+    const punchOffset = Math.sin(Math.min(1, t) * Math.PI) * 0.45
+    const sideSwing = Math.sin(Math.min(1, t) * Math.PI) * 0.12
+
+    leftRef.current.position.set(-0.42 + sideSwing, -0.38, -0.72 - punchOffset)
+    rightRef.current.position.set(0.42 - sideSwing, -0.42, -0.7 - punchOffset)
+
+    leftRef.current.rotation.set(-0.5, 0.3, 0.15 + punchOffset * 0.5)
+    rightRef.current.rotation.set(-0.55, -0.3, -0.15 - punchOffset * 0.5)
+  })
+
+  return (
+    <group>
+      <group ref={leftRef}>
+        <mesh>
+          <boxGeometry args={[0.22, 0.22, 0.32]} />
+          <meshStandardMaterial color="#f1c27d" />
+        </mesh>
+      </group>
+
+      <group ref={rightRef}>
+        <mesh>
+          <boxGeometry args={[0.22, 0.22, 0.32]} />
+          <meshStandardMaterial color="#f1c27d" />
+        </mesh>
+      </group>
+    </group>
+  )
+}
+
+function HUD({ game, onRestart, canExit }) {
   return (
     <>
       <div
@@ -326,6 +517,9 @@ function HUD({ game, onRestart }) {
         <div>Punti: {game.score} / {REQUIRED_SCORE}</div>
         <div>Mostri attivi: {game.enemies.length}</div>
         <div>Vita: {game.health}</div>
+        <div style={{ marginTop: 8, color: canExit ? '#7dff9d' : '#ffd3a1' }}>
+          {canExit ? 'Uscita aperta: raggiungi la porta verde' : 'Raccogli ancora punti per aprire l’uscita'}
+        </div>
         <div style={{ opacity: 0.8, marginTop: 8 }}>
           W A S D muovi • mouse guarda • F tira un pugno
         </div>
@@ -341,7 +535,7 @@ function HUD({ game, onRestart }) {
           textAlign: 'center'
         }}
       >
-        <div style={{ fontSize: 28 }}>+</div>
+        <div style={{ fontSize: 28, textShadow: '0 0 6px #fff' }}>+</div>
       </div>
 
       {(game.status === 'lost' || game.status === 'won') && (
@@ -349,7 +543,7 @@ function HUD({ game, onRestart }) {
           style={{
             position: 'absolute',
             inset: 0,
-            background: 'rgba(0,0,0,0.8)',
+            background: 'rgba(0,0,0,0.82)',
             display: 'grid',
             placeItems: 'center',
             color: 'white',
@@ -364,7 +558,7 @@ function HUD({ game, onRestart }) {
 
             <div style={{ maxWidth: 640, lineHeight: 1.5 }}>
               {game.status === 'won'
-                ? 'Hai raccolto abbastanza punti e hai trovato l’uscita della pizzeria.'
+                ? 'Hai raccolto abbastanza punti e hai raggiunto la porta di uscita.'
                 : 'I personaggi animati ti hanno raggiunto prima della fuga.'}
             </div>
 
@@ -424,8 +618,7 @@ function Intro({ onStart }) {
         </p>
 
         <p>
-          Questa versione è <strong>single-player</strong>. Il multiplayer vero
-          arriverà in una fase successiva con backend realtime.
+          In questa versione la porta di uscita si apre dopo aver raccolto abbastanza punti.
         </p>
 
         <input
@@ -460,12 +653,58 @@ function Intro({ onStart }) {
   )
 }
 
-function CameraRig({ playerRef }) {
-  const { camera } = useThree()
+function CameraRig({ playerRef, attackAnim }) {
+  const { camera, scene } = useThree()
+  const fistsGroupRef = useRef()
 
-  useFrame(() => {
+  useEffect(() => {
+    const fistsGroup = new THREE.Group()
+    const light = new THREE.AmbientLight(0xffffff, 1.3)
+    fistsGroup.add(light)
+
+    const left = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.22, 0.32),
+      new THREE.MeshStandardMaterial({ color: '#f1c27d' })
+    )
+    const right = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.22, 0.32),
+      new THREE.MeshStandardMaterial({ color: '#f1c27d' })
+    )
+
+    left.position.set(-0.42, -0.38, -0.72)
+    right.position.set(0.42, -0.42, -0.7)
+
+    fistsGroup.add(left)
+    fistsGroup.add(right)
+    camera.add(fistsGroup)
+    scene.add(camera)
+
+    fistsGroupRef.current = { group: fistsGroup, left, right }
+
+    return () => {
+      camera.remove(fistsGroup)
+    }
+  }, [camera, scene])
+
+  useFrame((_, delta) => {
     if (!playerRef.current) return
     camera.position.copy(playerRef.current.position)
+
+    if (attackAnim.current > 0) {
+      attackAnim.current = Math.max(0, attackAnim.current - delta * 3.2)
+    }
+
+    if (fistsGroupRef.current) {
+      const t = attackAnim.current
+      const punchOffset = Math.sin(Math.min(1, t) * Math.PI) * 0.45
+      const sideSwing = Math.sin(Math.min(1, t) * Math.PI) * 0.12
+
+      fistsGroupRef.current.left.position.set(-0.42 + sideSwing, -0.38, -0.72 - punchOffset)
+      fistsGroupRef.current.right.position.set(0.42 - sideSwing, -0.42, -0.7 - punchOffset)
+
+      fistsGroupRef.current.left.rotation.set(-0.5, 0.3, 0.15 + punchOffset * 0.5)
+      fistsGroupRef.current.right.rotation.set(-0.55, -0.3, -0.15 - punchOffset * 0.5)
+    }
   })
 
   return <PointerLockControls />
@@ -477,6 +716,9 @@ function Scene({ game, setGame }) {
   const lastSpawnRef = useRef(0)
   const hitCooldown = useRef(0)
   const attackCooldown = useRef(0)
+  const attackAnim = useRef(0)
+
+  const canExit = game.score >= REQUIRED_SCORE
 
   useEffect(() => {
     const down = (e) => setKeys((k) => ({ ...k, [e.code]: true }))
@@ -516,7 +758,7 @@ function Scene({ game, setGame }) {
     if (keys['KeyD']) move.add(right)
 
     if (move.lengthSq() > 0) {
-      move.normalize().multiplyScalar(18 * delta)
+      move.normalize().multiplyScalar(15 * delta)
     }
 
     const nextX = playerRef.current.position.x + move.x
@@ -555,30 +797,39 @@ function Scene({ game, setGame }) {
       const dx = playerRef.current.position.x - enemy.x
       const dz = playerRef.current.position.z - enemy.z
       const dist = Math.hypot(dx, dz) || 1
-      const speed = enemy.alert ? 8 : 5
+      const speed = enemy.alert ? 5.8 : 3.8
+      const seen = dist < 18
       const nx = enemy.x + (dx / dist) * speed * delta
       const nz = enemy.z + (dz / dist) * speed * delta
-      const blocked = collidesWithWalls(nx, nz)
-      const seen = dist < 20
 
-      return {
+      const nextEnemy = {
         ...enemy,
-        x: blocked ? enemy.x : nx,
-        z: blocked ? enemy.z : nz,
         alert: seen || enemy.alert,
-        rotation: Math.atan2(dx, dz)
+        rotation: Math.atan2(dx, dz),
+        x: enemy.x,
+        z: enemy.z
       }
+
+      const enemyRadius = 1.0
+      const blockedX = WALLS.some((wall) => rectContains(wall, nx, enemy.z, enemyRadius))
+      const blockedZ = WALLS.some((wall) => rectContains(wall, enemy.x, nz, enemyRadius))
+
+      if (!blockedX) nextEnemy.x = clamp(nx, -46, 46)
+      if (!blockedZ) nextEnemy.z = clamp(nz, -46, 46)
+
+      return nextEnemy
     })
 
     if (keys['KeyF'] && attackCooldown.current <= 0) {
       attackCooldown.current = 0.55
+      attackAnim.current = 1
 
       nextEnemies = nextEnemies.filter((enemy) => {
         const dist = Math.hypot(
           playerRef.current.position.x - enemy.x,
           playerRef.current.position.z - enemy.z
         )
-        return dist > 3.1
+        return dist > 2.4
       })
     }
 
@@ -590,12 +841,12 @@ function Scene({ game, setGame }) {
           Math.hypot(
             playerRef.current.position.x - enemy.x,
             playerRef.current.position.z - enemy.z
-          ) < 1.6
+          ) < 1.05
       )
 
       if (touchingEnemy) {
         nextHealth -= 1
-        hitCooldown.current = 1.1
+        hitCooldown.current = 1.4
       }
     }
 
@@ -613,7 +864,9 @@ function Scene({ game, setGame }) {
         x: spot.x,
         z: spot.z,
         alert: false,
-        rotation: 0
+        rotation: 0,
+        phase: Math.random() * 10,
+        variant: Math.floor(Math.random() * 3)
       })
     }
 
@@ -651,14 +904,18 @@ function Scene({ game, setGame }) {
 
   return (
     <>
-      <CameraRig playerRef={playerRef} />
+      <CameraRig playerRef={playerRef} attackAnim={attackAnim} />
 
-      <ambientLight intensity={0.55} />
-      <directionalLight position={[10, 16, 5]} intensity={1.4} castShadow />
-      <fog attach="fog" args={['#130c0c', 35, 90]} />
+      <ambientLight intensity={0.22} />
+      <directionalLight position={[8, 16, 6]} intensity={0.4} castShadow />
+      <pointLight position={[0, 6, 0]} intensity={1.2} distance={40} color="#7fa7ff" />
+      <pointLight position={[0, 5, -36]} intensity={0.9} distance={28} color="#ffb84d" />
+      <pointLight position={[38, 5, 42]} intensity={1.4} distance={20} color="#56ff8b" />
+      <fog attach="fog" args={['#0f0c12', 18, 75]} />
 
       <Ground />
-      <Walls />
+      <Walls canExit={canExit} />
+      <StageArea />
       <DecorativeProps />
 
       {game.pickups.map((item) => (
@@ -668,6 +925,8 @@ function Scene({ game, setGame }) {
       {game.enemies.map((enemy) => (
         <Enemy key={enemy.id} enemy={enemy} />
       ))}
+
+      <EnemyBillboard enemies={game.enemies} player={game.player} />
 
       <mesh ref={playerRef} visible={false}>
         <capsuleGeometry args={[0.4, 0.6, 4, 8]} />
@@ -726,7 +985,11 @@ export default function App() {
         <Scene game={game} setGame={setGame} />
       </Canvas>
 
-      <HUD game={game} onRestart={() => setGame(createGame(game.name))} />
+      <HUD
+        game={game}
+        onRestart={() => setGame(createGame(game.name))}
+        canExit={game.score >= REQUIRED_SCORE}
+      />
       <Minimap
         player={game.player}
         pickups={game.pickups}
