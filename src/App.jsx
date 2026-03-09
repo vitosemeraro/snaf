@@ -27,7 +27,7 @@ const WALLS = [
   { x: -4, z: -38, w: 26, d: 4 }
 ]
 
-const EXIT_ZONE = { x: 40, z: 46, w: 12, d: 4 }
+const EXIT_ZONE = { x: 40, z: 44.5, w: 12, d: 9 }
 const EXIT_DOOR = { x: 40, z: 48, w: 10, d: 0.8 }
 
 function clamp(value, min, max) {
@@ -89,6 +89,38 @@ function Ground() {
 }
 
 function Walls({ canExit }) {
+  const doorMatRef = useRef()
+  const zoneMatRef = useRef()
+  const glowLightRef = useRef()
+  const sideLightLeftRef = useRef()
+  const sideLightRightRef = useRef()
+
+  useFrame((state) => {
+    const t = state.clock.elapsedTime
+    const wave = (Math.sin(t * 6) + 1) / 2
+
+    if (doorMatRef.current) {
+      doorMatRef.current.emissiveIntensity = canExit ? 1.2 + wave * 1.8 : 0.12
+      doorMatRef.current.opacity = canExit ? 0.58 + wave * 0.32 : 0.9
+    }
+
+    if (zoneMatRef.current) {
+      zoneMatRef.current.opacity = canExit ? 0.35 + wave * 0.45 : 0.7
+    }
+
+    if (glowLightRef.current) {
+      glowLightRef.current.intensity = canExit ? 2.8 + wave * 2.2 : 0
+    }
+
+    if (sideLightLeftRef.current) {
+      sideLightLeftRef.current.intensity = canExit ? 1.3 + wave * 1.0 : 0
+    }
+
+    if (sideLightRightRef.current) {
+      sideLightRightRef.current.intensity = canExit ? 1.3 + wave * 1.0 : 0
+    }
+  })
+
   return (
     <group>
       {WALLS.map((wall, i) => (
@@ -106,26 +138,50 @@ function Walls({ canExit }) {
       <mesh position={[EXIT_DOOR.x, 2.5, EXIT_DOOR.z]}>
         <boxGeometry args={[EXIT_DOOR.w, 5, EXIT_DOOR.d]} />
         <meshStandardMaterial
+          ref={doorMatRef}
           color={canExit ? '#39d66f' : '#7a2020'}
           emissive={canExit ? '#39d66f' : '#220000'}
-          emissiveIntensity={canExit ? 1.2 : 0.15}
+          emissiveIntensity={canExit ? 1.2 : 0.12}
           transparent
-          opacity={0.9}
+          opacity={canExit ? 0.7 : 0.9}
         />
       </mesh>
 
       <mesh position={[EXIT_ZONE.x, 0.05, EXIT_ZONE.z]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[EXIT_ZONE.w, EXIT_ZONE.d]} />
         <meshBasicMaterial
+          ref={zoneMatRef}
           color={canExit ? '#56ff8b' : '#8a2b2b'}
           transparent
-          opacity={0.7}
+          opacity={canExit ? 0.55 : 0.7}
           side={THREE.DoubleSide}
         />
       </mesh>
 
+      <pointLight
+        ref={glowLightRef}
+        position={[EXIT_DOOR.x, 4.4, EXIT_DOOR.z - 1.2]}
+        intensity={canExit ? 3.2 : 0}
+        distance={18}
+        color="#56ff8b"
+      />
+      <pointLight
+        ref={sideLightLeftRef}
+        position={[EXIT_DOOR.x - 4.2, 2.4, EXIT_DOOR.z - 1]}
+        intensity={canExit ? 1.8 : 0}
+        distance={8}
+        color="#7dffb0"
+      />
+      <pointLight
+        ref={sideLightRightRef}
+        position={[EXIT_DOOR.x + 4.2, 2.4, EXIT_DOOR.z - 1]}
+        intensity={canExit ? 1.8 : 0}
+        distance={8}
+        color="#7dffb0"
+      />
+
       <Text
-        position={[EXIT_DOOR.x, 5.8, EXIT_DOOR.z + 0.3]}
+        position={[EXIT_DOOR.x, 5.8, EXIT_DOOR.z - 0.2]}
         fontSize={1.6}
         color={canExit ? '#7dff9d' : '#ff8d8d'}
         anchorX="center"
@@ -463,43 +519,6 @@ function Minimap({ player, pickups, enemies }) {
   )
 }
 
-function Fists({ attackAnim }) {
-  const leftRef = useRef()
-  const rightRef = useRef()
-
-  useFrame(() => {
-    const t = attackAnim.current
-    if (!leftRef.current || !rightRef.current) return
-
-    const punchOffset = Math.sin(Math.min(1, t) * Math.PI) * 0.45
-    const sideSwing = Math.sin(Math.min(1, t) * Math.PI) * 0.12
-
-    leftRef.current.position.set(-0.42 + sideSwing, -0.38, -0.72 - punchOffset)
-    rightRef.current.position.set(0.42 - sideSwing, -0.42, -0.7 - punchOffset)
-
-    leftRef.current.rotation.set(-0.5, 0.3, 0.15 + punchOffset * 0.5)
-    rightRef.current.rotation.set(-0.55, -0.3, -0.15 - punchOffset * 0.5)
-  })
-
-  return (
-    <group>
-      <group ref={leftRef}>
-        <mesh>
-          <boxGeometry args={[0.22, 0.22, 0.32]} />
-          <meshStandardMaterial color="#f1c27d" />
-        </mesh>
-      </group>
-
-      <group ref={rightRef}>
-        <mesh>
-          <boxGeometry args={[0.22, 0.22, 0.32]} />
-          <meshStandardMaterial color="#f1c27d" />
-        </mesh>
-      </group>
-    </group>
-  )
-}
-
 function HUD({ game, onRestart, canExit }) {
   return (
     <>
@@ -517,8 +536,8 @@ function HUD({ game, onRestart, canExit }) {
         <div>Punti: {game.score} / {REQUIRED_SCORE}</div>
         <div>Mostri attivi: {game.enemies.length}</div>
         <div>Vita: {game.health}</div>
-        <div style={{ marginTop: 8, color: canExit ? '#7dff9d' : '#ffd3a1' }}>
-          {canExit ? 'Uscita aperta: raggiungi la porta verde' : 'Raccogli ancora punti per aprire l’uscita'}
+        <div style={{ marginTop: 8, color: canExit ? '#7dff9d' : '#ffd3a1', fontWeight: 700 }}>
+          {canExit ? 'USCITA APERTA: entra nella zona verde lampeggiante' : 'Raccogli ancora punti per aprire l’uscita'}
         </div>
         <div style={{ opacity: 0.8, marginTop: 8 }}>
           W A S D muovi • mouse guarda • F tira un pugno
@@ -882,7 +901,7 @@ function Scene({ game, setGame }) {
         EXIT_ZONE,
         playerRef.current.position.x,
         playerRef.current.position.z,
-        0
+        0.45
       )
     ) {
       nextStatus = 'won'
@@ -910,7 +929,6 @@ function Scene({ game, setGame }) {
       <directionalLight position={[8, 16, 6]} intensity={0.4} castShadow />
       <pointLight position={[0, 6, 0]} intensity={1.2} distance={40} color="#7fa7ff" />
       <pointLight position={[0, 5, -36]} intensity={0.9} distance={28} color="#ffb84d" />
-      <pointLight position={[38, 5, 42]} intensity={1.4} distance={20} color="#56ff8b" />
       <fog attach="fog" args={['#0f0c12', 18, 75]} />
 
       <Ground />
