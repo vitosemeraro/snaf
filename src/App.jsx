@@ -143,9 +143,10 @@ function Pickup({ item }) {
   const ref = useRef();
 
   useFrame((state) => {
-    if (!ref.current) return;
-    ref.current.rotation.y += state.clock.getDelta() * 1.5;
-    ref.current.position.y = 1.1 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.18;
+    if (ref.current) {
+      ref.current.rotation.y += state.clock.getDelta() * 1.5;
+      ref.current.position.y = 1.1 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.18;
+    }
   });
 
   if (item.collected) return null;
@@ -740,7 +741,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
     if (game.status !== 'playing') return;
 
     if (isMobile && !gyroEnabled) {
-      yawRef.current -= mobileInputRef.current.lookDeltaX * 0.006;
+      yawRef.current += mobileInputRef.current.lookDeltaX * 0.006;
       mobileInputRef.current.lookDeltaX = 0;
     }
 
@@ -828,7 +829,9 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 
     let nextHealth = game.health;
     if (hitCooldown.current <= 0) {
-      const touchingEnemy = nextEnemies.some((enemy) => Math.hypot(playerRef.current.position.x - enemy.x, playerRef.current.position.z - enemy.z) < 1.6);
+      const touchingEnemy = nextEnemies.some(
+        (enemy) => Math.hypot(playerRef.current.position.x - enemy.x, playerRef.current.position.z - enemy.z) < 1.6
+      );
       if (touchingEnemy) {
         nextHealth -= 1;
         hitCooldown.current = 1.1;
