@@ -4,7 +4,6 @@ import { PointerLockControls, Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
 const MAP_W = 100;
-const MAP_H = 100;
 const PLAYER_RADIUS = 1.2;
 const WALL_HEIGHT = 6;
 const PICKUP_COUNT = 18;
@@ -99,9 +98,20 @@ function Walls() {
 }
 
 function DecorativeProps() {
-  const tables = useMemo(() => [
-    [-35, -35], [-35, 35], [-2, -10], [32, 34], [34, -10], [-6, 34], [24, -34], [-28, 4], [6, 32],
-  ], []);
+  const tables = useMemo(
+    () => [
+      [-35, -35],
+      [-35, 35],
+      [-2, -10],
+      [32, 34],
+      [34, -10],
+      [-6, 34],
+      [24, -34],
+      [-28, 4],
+      [6, 32],
+    ],
+    []
+  );
 
   return (
     <group>
@@ -131,13 +141,15 @@ function DecorativeProps() {
 
 function Pickup({ item }) {
   const ref = useRef();
+
   useFrame((state) => {
-    if (ref.current) {
-      ref.current.rotation.y += state.clock.getDelta() * 1.5;
-      ref.current.position.y = 1.1 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.18;
-    }
+    if (!ref.current) return;
+    ref.current.rotation.y += state.clock.getDelta() * 1.5;
+    ref.current.position.y = 1.1 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.18;
   });
+
   if (item.collected) return null;
+
   return (
     <mesh ref={ref} position={[item.x, 1.1, item.z]} castShadow>
       <octahedronGeometry args={[0.7, 0]} />
@@ -148,12 +160,14 @@ function Pickup({ item }) {
 
 function Enemy({ enemy }) {
   const ref = useRef();
+
   useFrame((state) => {
     if (!ref.current) return;
     ref.current.position.set(enemy.x, 1.5, enemy.z);
     ref.current.rotation.y = enemy.rotation;
     ref.current.position.y += Math.sin(state.clock.elapsedTime * 4 + enemy.id) * 0.06;
   });
+
   return (
     <group ref={ref}>
       <mesh castShadow>
@@ -183,69 +197,92 @@ function Enemy({ enemy }) {
 function Minimap({ player, pickups, enemies, isMobile }) {
   const size = isMobile ? 132 : 180;
   const scale = size / MAP_W;
+
   return (
-    <div style={{
-      position: 'absolute',
-      right: isMobile ? 10 : 16,
-      top: isMobile ? 10 : 16,
-      width: size,
-      height: size,
-      background: 'rgba(0,0,0,0.72)',
-      border: '2px solid #ffffff33',
-      borderRadius: 10,
-      overflow: 'hidden',
-      zIndex: 20,
-    }}>
+    <div
+      style={{
+        position: 'absolute',
+        right: isMobile ? 10 : 16,
+        top: isMobile ? 10 : 16,
+        width: size,
+        height: size,
+        background: 'rgba(0,0,0,0.72)',
+        border: '2px solid #ffffff33',
+        borderRadius: 10,
+        overflow: 'hidden',
+        zIndex: 20,
+      }}
+    >
       {WALLS.map((w, i) => (
-        <div key={i} style={{
-          position: 'absolute',
-          left: size / 2 + (w.x - w.w / 2) * scale,
-          top: size / 2 + (w.z - w.d / 2) * scale,
-          width: w.w * scale,
-          height: w.d * scale,
-          background: '#8f2a2a',
-        }} />
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            left: size / 2 + (w.x - w.w / 2) * scale,
+            top: size / 2 + (w.z - w.d / 2) * scale,
+            width: w.w * scale,
+            height: w.d * scale,
+            background: '#8f2a2a',
+          }}
+        />
       ))}
-      <div style={{
-        position: 'absolute',
-        left: size / 2 + (EXIT_ZONE.x - EXIT_ZONE.w / 2) * scale,
-        top: size / 2 + (EXIT_ZONE.z - EXIT_ZONE.d / 2) * scale,
-        width: EXIT_ZONE.w * scale,
-        height: EXIT_ZONE.d * scale,
-        border: '2px solid #56e17f',
-      }} />
-      {pickups.filter((p) => !p.collected).map((p) => (
-        <div key={p.id} style={{
+
+      <div
+        style={{
           position: 'absolute',
-          width: 6,
-          height: 6,
-          borderRadius: 999,
-          left: size / 2 + p.x * scale - 3,
-          top: size / 2 + p.z * scale - 3,
-          background: '#ffd84d',
-        }} />
-      ))}
+          left: size / 2 + (EXIT_ZONE.x - EXIT_ZONE.w / 2) * scale,
+          top: size / 2 + (EXIT_ZONE.z - EXIT_ZONE.d / 2) * scale,
+          width: EXIT_ZONE.w * scale,
+          height: EXIT_ZONE.d * scale,
+          border: '2px solid #56e17f',
+        }}
+      />
+
+      {pickups
+        .filter((p) => !p.collected)
+        .map((p) => (
+          <div
+            key={p.id}
+            style={{
+              position: 'absolute',
+              width: 6,
+              height: 6,
+              borderRadius: 999,
+              left: size / 2 + p.x * scale - 3,
+              top: size / 2 + p.z * scale - 3,
+              background: '#ffd84d',
+            }}
+          />
+        ))}
+
       {enemies.map((e) => (
-        <div key={e.id} style={{
-          position: 'absolute',
-          width: 8,
-          height: 8,
-          borderRadius: 999,
-          left: size / 2 + e.x * scale - 4,
-          top: size / 2 + e.z * scale - 4,
-          background: '#ff5c5c',
-        }} />
+        <div
+          key={e.id}
+          style={{
+            position: 'absolute',
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            left: size / 2 + e.x * scale - 4,
+            top: size / 2 + e.z * scale - 4,
+            background: '#ff5c5c',
+          }}
+        />
       ))}
-      <div style={{
-        position: 'absolute',
-        width: 10,
-        height: 10,
-        borderRadius: 999,
-        left: size / 2 + player.x * scale - 5,
-        top: size / 2 + player.z * scale - 5,
-        background: '#67b7ff',
-        boxShadow: '0 0 8px #67b7ff',
-      }} />
+
+      <div
+        style={{
+          position: 'absolute',
+          width: 10,
+          height: 10,
+          borderRadius: 999,
+          left: size / 2 + player.x * scale - 5,
+          top: size / 2 + player.z * scale - 5,
+          background: '#67b7ff',
+          boxShadow: '0 0 8px #67b7ff',
+        }}
+      />
+
       <div style={{ position: 'absolute', left: 10, bottom: 8, color: 'white', fontSize: 12, letterSpacing: 1 }}>
         MAPPA
       </div>
@@ -256,53 +293,60 @@ function Minimap({ player, pickups, enemies, isMobile }) {
 function HUD({ game, onRestart, isMobile, gyroEnabled }) {
   return (
     <>
-      <div style={{
-        position: 'absolute',
-        left: 16,
-        top: 16,
-        color: 'white',
-        fontFamily: 'sans-serif',
-        zIndex: 20,
-        maxWidth: isMobile ? '58vw' : 'none',
-      }}>
+      <div
+        style={{
+          position: 'absolute',
+          left: 16,
+          top: 16,
+          color: 'white',
+          fontFamily: 'sans-serif',
+          zIndex: 20,
+          maxWidth: isMobile ? '58vw' : 'none',
+        }}
+      >
         <div style={{ fontSize: 24, fontWeight: 800 }}>{game.name || 'Player'}</div>
         <div>Punti: {game.score} / {REQUIRED_SCORE}</div>
         <div>Mostri attivi: {game.enemies.length}</div>
         <div>Vita: {game.health}</div>
         <div style={{ opacity: 0.8, marginTop: 8 }}>
           {isMobile
-            ? `Touch pad sinistra muove • destra guarda • pugno • gyro ${gyroEnabled ? 'ON' : 'OFF'}`
+            ? `Pulsanti muovono • trascina a destra per guardare • pugno • gyro ${gyroEnabled ? 'ON' : 'OFF'}`
             : 'WASD muovi • mouse guarda • F tira un pugno'}
         </div>
       </div>
+
       {!isMobile && (
-        <div style={{
-          position: 'absolute',
-          left: '50%',
-          bottom: 20,
-          transform: 'translateX(-50%)',
-          color: 'white',
-          fontFamily: 'sans-serif',
-          textAlign: 'center',
-          zIndex: 20,
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: 20,
+            transform: 'translateX(-50%)',
+            color: 'white',
+            fontFamily: 'sans-serif',
+            textAlign: 'center',
+            zIndex: 20,
+          }}
+        >
           <div style={{ fontSize: 28 }}>+</div>
         </div>
       )}
 
       {(game.status === 'lost' || game.status === 'won') && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(0,0,0,0.8)',
-          display: 'grid',
-          placeItems: 'center',
-          color: 'white',
-          fontFamily: 'sans-serif',
-          textAlign: 'center',
-          padding: 24,
-          zIndex: 50,
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.8)',
+            display: 'grid',
+            placeItems: 'center',
+            color: 'white',
+            fontFamily: 'sans-serif',
+            textAlign: 'center',
+            padding: 24,
+            zIndex: 50,
+          }}
+        >
           <div>
             <div style={{ fontSize: 42, fontWeight: 900, marginBottom: 12 }}>
               {game.status === 'won' ? 'SEI SCAPPATO!' : 'TI HANNO PRESO!'}
@@ -312,15 +356,18 @@ function HUD({ game, onRestart, isMobile, gyroEnabled }) {
                 ? 'Hai raccolto abbastanza punti e hai trovato l’uscita della pizzeria.'
                 : 'I personaggi animati ti hanno raggiunto prima della fuga.'}
             </div>
-            <button onClick={onRestart} style={{
-              marginTop: 18,
-              padding: '12px 18px',
-              background: '#ffffff',
-              border: 'none',
-              borderRadius: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}>
+            <button
+              onClick={onRestart}
+              style={{
+                marginTop: 18,
+                padding: '12px 18px',
+                background: '#ffffff',
+                border: 'none',
+                borderRadius: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
               Rigioca
             </button>
           </div>
@@ -332,18 +379,30 @@ function HUD({ game, onRestart, isMobile, gyroEnabled }) {
 
 function Intro({ onStart, isMobile }) {
   const [name, setName] = useState('');
+
   return (
-    <div style={{
-      position: 'absolute',
-      inset: 0,
-      display: 'grid',
-      placeItems: 'center',
-      background: 'radial-gradient(circle at top, #411, #111)',
-      color: 'white',
-      fontFamily: 'sans-serif',
-      padding: 24,
-    }}>
-      <div style={{ maxWidth: 760, width: '100%', background: 'rgba(0,0,0,0.5)', border: '1px solid #ffffff20', borderRadius: 20, padding: 24 }}>
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'grid',
+        placeItems: 'center',
+        background: 'radial-gradient(circle at top, #411, #111)',
+        color: 'white',
+        fontFamily: 'sans-serif',
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 760,
+          width: '100%',
+          background: 'rgba(0,0,0,0.5)',
+          border: '1px solid #ffffff20',
+          borderRadius: 20,
+          padding: 24,
+        }}
+      >
         <h1 style={{ marginTop: 0, fontSize: 40 }}>Pizzeria Escape Prototype</h1>
         <p>
           Vertical slice giocabile in browser: prima persona, punti da raccogliere, minimappa, mostri buffi ma inquietanti,
@@ -354,7 +413,7 @@ function Intro({ onStart, isMobile }) {
         </p>
         {isMobile && (
           <p style={{ color: '#cfe7ff' }}>
-            Su mobile: usa la pulsantiera in basso a sinistra per muoverti, trascina a destra per guardarti intorno,
+            Su mobile: usa la pulsantiera in basso a sinistra per muoverti, trascina a destra per girarti solo lateralmente,
             oppure attiva il giroscopio.
           </p>
         )}
@@ -375,7 +434,7 @@ function Intro({ onStart, isMobile }) {
   );
 }
 
-function CameraRig({ playerRef, isMobile, yawRef, pitchRef }) {
+function CameraRig({ playerRef, isMobile, yawRef }) {
   const { camera } = useThree();
 
   useFrame(() => {
@@ -385,7 +444,8 @@ function CameraRig({ playerRef, isMobile, yawRef, pitchRef }) {
     if (isMobile) {
       camera.rotation.order = 'YXZ';
       camera.rotation.y = yawRef.current;
-      camera.rotation.x = pitchRef.current;
+      camera.rotation.x = 0;
+      camera.rotation.z = 0;
     }
   });
 
@@ -397,18 +457,10 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
     active: false,
     touchId: null,
     lastX: 0,
-    lastY: 0,
   });
 
   const setDir = (key, value) => {
     mobileInputRef.current[key] = value;
-  };
-
-  const endAllMovement = () => {
-    mobileInputRef.current.forward = false;
-    mobileInputRef.current.back = false;
-    mobileInputRef.current.left = false;
-    mobileInputRef.current.right = false;
   };
 
   const handleLookStart = (e) => {
@@ -418,7 +470,6 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
     lookPadRef.current.active = true;
     lookPadRef.current.touchId = touch.identifier;
     lookPadRef.current.lastX = touch.clientX;
-    lookPadRef.current.lastY = touch.clientY;
   };
 
   const handleLookMove = (e) => {
@@ -427,13 +478,8 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
     if (!touch) return;
 
     const dx = touch.clientX - lookPadRef.current.lastX;
-    const dy = touch.clientY - lookPadRef.current.lastY;
-
     mobileInputRef.current.lookDeltaX += dx;
-    mobileInputRef.current.lookDeltaY += dy;
-
     lookPadRef.current.lastX = touch.clientX;
-    lookPadRef.current.lastY = touch.clientY;
   };
 
   const handleLookEnd = (e) => {
@@ -482,6 +528,7 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
             ↑
           </button>
         </div>
+
         <div style={{ position: 'absolute', left: 6, top: 63 }}>
           <button
             style={padButtonStyle}
@@ -492,6 +539,7 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
             ←
           </button>
         </div>
+
         <div style={{ position: 'absolute', left: 120, top: 63 }}>
           <button
             style={padButtonStyle}
@@ -502,6 +550,7 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
             →
           </button>
         </div>
+
         <div style={{ position: 'absolute', left: 63, top: 122 }}>
           <button
             style={padButtonStyle}
@@ -512,16 +561,19 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
             ↓
           </button>
         </div>
-        <div style={{
-          position: 'absolute',
-          left: 0,
-          bottom: -24,
-          width: '100%',
-          textAlign: 'center',
-          color: 'rgba(255,255,255,0.8)',
-          fontSize: 12,
-          fontFamily: 'sans-serif',
-        }}>
+
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            bottom: -24,
+            width: '100%',
+            textAlign: 'center',
+            color: 'rgba(255,255,255,0.8)',
+            fontSize: 12,
+            fontFamily: 'sans-serif',
+          }}
+        >
           MOVIMENTO
         </div>
       </div>
@@ -610,10 +662,10 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
           fontFamily: 'sans-serif',
           zIndex: 25,
           textAlign: 'right',
-          maxWidth: 120,
+          maxWidth: 140,
         }}
       >
-        {gyroEnabled ? 'Muovi il telefono per guardare' : 'Trascina a destra per guardare'}
+        {gyroEnabled ? 'Muovi il telefono a destra e sinistra' : 'Trascina a destra solo orizzontalmente'}
       </div>
 
       <div
@@ -636,12 +688,10 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
 function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
   const [keys, setKeys] = useState({});
   const playerRef = useRef(new THREE.Object3D());
-  const velocity = useRef(new THREE.Vector3());
   const lastSpawnRef = useRef(0);
   const hitCooldown = useRef(0);
   const attackCooldown = useRef(0);
   const yawRef = useRef(0);
-  const pitchRef = useRef(0);
   const gyroBaseRef = useRef(null);
 
   useEffect(() => {
@@ -651,6 +701,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
     const up = (e) => setKeys((k) => ({ ...k, [e.code]: false }));
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
+
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
@@ -669,18 +720,14 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 
     const handleOrientation = (event) => {
       const gamma = typeof event.gamma === 'number' ? event.gamma : null;
-      const beta = typeof event.beta === 'number' ? event.beta : null;
-      if (gamma == null || beta == null) return;
+      if (gamma == null) return;
 
       if (!gyroBaseRef.current) {
-        gyroBaseRef.current = { gamma, beta };
+        gyroBaseRef.current = { gamma };
       }
 
       const gammaDelta = clamp(gamma - gyroBaseRef.current.gamma, -45, 45);
-      const betaDelta = clamp(beta - gyroBaseRef.current.beta, -35, 35);
-
       yawRef.current = -gammaDelta * 0.025;
-      pitchRef.current = clamp((betaDelta - 10) * 0.018, -0.95, 0.95);
     };
 
     window.addEventListener('deviceorientation', handleOrientation, true);
@@ -694,22 +741,20 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 
     if (isMobile && !gyroEnabled) {
       yawRef.current -= mobileInputRef.current.lookDeltaX * 0.006;
-      pitchRef.current -= mobileInputRef.current.lookDeltaY * 0.004;
-      pitchRef.current = clamp(pitchRef.current, -1.15, 1.15);
       mobileInputRef.current.lookDeltaX = 0;
-      mobileInputRef.current.lookDeltaY = 0;
     }
-
-    const controls = state.camera;
-    const forward = new THREE.Vector3();
 
     if (isMobile) {
-      forward.set(Math.sin(yawRef.current), 0, -Math.cos(yawRef.current));
-    } else {
-      controls.getWorldDirection(forward);
-      forward.y = 0;
-      forward.normalize();
+      state.camera.rotation.order = 'YXZ';
+      state.camera.rotation.y = yawRef.current;
+      state.camera.rotation.x = 0;
+      state.camera.rotation.z = 0;
     }
+
+    const forward = new THREE.Vector3();
+    state.camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
 
     const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
@@ -723,12 +768,20 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
     if (moveBack) move.sub(forward);
     if (moveLeft) move.sub(right);
     if (moveRight) move.add(right);
-    if (move.lengthSq() > 0) move.normalize().multiplyScalar((isMobile ? 15 : 18) * delta);
+
+    if (move.lengthSq() > 0) {
+      move.normalize().multiplyScalar((isMobile ? 15 : 18) * delta);
+    }
 
     const nextX = playerRef.current.position.x + move.x;
     const nextZ = playerRef.current.position.z + move.z;
-    if (!collidesWithWalls(nextX, playerRef.current.position.z)) playerRef.current.position.x = clamp(nextX, -46, 46);
-    if (!collidesWithWalls(playerRef.current.position.x, nextZ)) playerRef.current.position.z = clamp(nextZ, -46, 46);
+
+    if (!collidesWithWalls(nextX, playerRef.current.position.z)) {
+      playerRef.current.position.x = clamp(nextX, -46, 46);
+    }
+    if (!collidesWithWalls(playerRef.current.position.x, nextZ)) {
+      playerRef.current.position.z = clamp(nextZ, -46, 46);
+    }
     playerRef.current.position.y = 1.7;
 
     attackCooldown.current -= delta;
@@ -736,6 +789,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 
     let nextPickups = game.pickups;
     let gained = 0;
+
     nextPickups = nextPickups.map((p) => {
       if (!p.collected && playerRef.current.position.distanceTo(new THREE.Vector3(p.x, 1.7, p.z)) < 2.2) {
         gained += 1;
@@ -753,6 +807,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
       const nz = enemy.z + (dz / dist) * speed * delta;
       const blocked = collidesWithWalls(nx, nz);
       const seen = dist < 20;
+
       return {
         ...enemy,
         x: blocked ? enemy.x : nx,
@@ -795,6 +850,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 
     let nextStatus = game.status;
     if (nextHealth <= 0) nextStatus = 'lost';
+
     if (game.score + gained >= REQUIRED_SCORE && rectContains(EXIT_ZONE, playerRef.current.position.x, playerRef.current.position.z, 0)) {
       nextStatus = 'won';
     }
@@ -815,7 +871,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 
   return (
     <>
-      <CameraRig playerRef={playerRef} isMobile={isMobile} yawRef={yawRef} pitchRef={pitchRef} />
+      <CameraRig playerRef={playerRef} isMobile={isMobile} yawRef={yawRef} />
       <ambientLight intensity={0.55} />
       <directionalLight position={[10, 16, 5]} intensity={1.4} castShadow />
       <fog attach="fog" args={['#130c0c', 35, 90]} />
@@ -859,6 +915,7 @@ export default function App() {
   const [game, setGame] = useState(null);
   const [isMobile, setIsMobile] = useState(isProbablyMobileDevice());
   const [gyroEnabled, setGyroEnabled] = useState(false);
+
   const mobileInputRef = useRef({
     forward: false,
     back: false,
@@ -866,7 +923,6 @@ export default function App() {
     right: false,
     attack: false,
     lookDeltaX: 0,
-    lookDeltaY: 0,
   });
 
   useEffect(() => {
@@ -894,7 +950,16 @@ export default function App() {
   }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#000', position: 'relative', overflow: 'hidden', touchAction: 'none' }}>
+    <div
+      style={{
+        width: '100vw',
+        height: '100vh',
+        background: '#000',
+        position: 'relative',
+        overflow: 'hidden',
+        touchAction: 'none',
+      }}
+    >
       <Canvas shadows camera={{ fov: 75, position: [-40, 1.7, 40] }}>
         <Scene
           game={game}
@@ -911,6 +976,7 @@ export default function App() {
         isMobile={isMobile}
         gyroEnabled={gyroEnabled}
       />
+
       <Minimap
         player={game.player}
         pickups={game.pickups}
