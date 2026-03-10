@@ -4,14 +4,49 @@ import { PointerLockControls, Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
 const MAP_W = 100;
-const PLAYER_RADIUS = 1.2;
 const WALL_HEIGHT = 6;
-const PICKUP_COUNT = 18;
-const REQUIRED_SCORE = 10;
-const ENEMY_SPAWN_SECONDS = 8;
-const ENEMY_MAX = 5;
+const PLAYER_RADIUS = 1.2;
+const BASE_REQUIRED_SCORE = 10;
 
-// Apertura reale nel muro superiore per l'uscita
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function rectContains(rect, x, z, margin = 0) {
+  return (
+    x > rect.x - rect.w / 2 - margin &&
+    x < rect.x + rect.w / 2 + margin &&
+    z > rect.z - rect.d / 2 - margin &&
+    z < rect.z + rect.d / 2 + margin
+  );
+}
+
+function isProbablyMobileDevice() {
+  if (typeof window === 'undefined') return false;
+  return (
+    /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(navigator.userAgent) ||
+    window.matchMedia('(pointer: coarse)').matches ||
+    window.innerWidth < 900
+  );
+}
+
+function getLevelConfig(level) {
+  return {
+    level,
+    requiredScore: BASE_REQUIRED_SCORE + (level - 1) * 3,
+    enemyMax: Math.min(4 + level * 2, 20),
+    enemySpawnSeconds: Math.max(7 - level * 0.45, 2.2),
+    enemySpeedIdle: 3.4 + level * 0.25,
+    enemySpeedAlert: 5.2 + level * 0.55,
+    attackRange: 2.8 + (level - 1) * 1.15,
+    attackCooldown: Math.max(0.6 - (level - 1) * 0.03, 0.28),
+    shieldSpawnCount: level >= 3 ? Math.min(1 + Math.floor((level - 3) / 2), 4) : 0,
+  };
+}
+
+const EXIT_ZONE = { x: 40, z: 44.5, w: 12, d: 7 };
+
+// apertura vera nel muro in alto a destra
 const WALLS = [
   { x: 0, z: -48, w: 96, d: 4 },
   { x: -48, z: 0, w: 4, d: 96 },
@@ -30,21 +65,6 @@ const WALLS = [
   { x: -4, z: -38, w: 26, d: 4 },
 ];
 
-const EXIT_ZONE = { x: 40, z: 44.5, w: 12, d: 7 };
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function rectContains(rect, x, z, margin = 0) {
-  return (
-    x > rect.x - rect.w / 2 - margin &&
-    x < rect.x + rect.w / 2 + margin &&
-    z > rect.z - rect.d / 2 - margin &&
-    z < rect.z + rect.d / 2 + margin
-  );
-}
-
 function collidesWithWalls(x, z) {
   return WALLS.some((wall) => rectContains(wall, x, z, PLAYER_RADIUS));
 }
@@ -53,7 +73,12 @@ function randomFreeSpot() {
   for (let i = 0; i < 500; i++) {
     const x = THREE.MathUtils.randFloatSpread(80);
     const z = THREE.MathUtils.randFloatSpread(80);
-    const blocked = collidesWithWalls(x, z) || rectContains(EXIT_ZONE, x, z, 5);
+
+    const blocked =
+      collidesWithWalls(x, z) ||
+      rectContains(EXIT_ZONE, x, z, 5) ||
+      rectContains({ x: 0, z: 0, w: 20, d: 12 }, x, z, 2);
+
     if (!blocked) return { x, z };
   }
   return { x: 0, z: 0 };
@@ -62,7 +87,7 @@ function randomFreeSpot() {
 function findSpawnNearPlayer(playerX, playerZ) {
   let chosen = randomFreeSpot();
 
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 25; i++) {
     const candidate = randomFreeSpot();
     const dist = Math.hypot(candidate.x - playerX, candidate.z - playerZ);
     if (dist > 10 && dist < 26) {
@@ -74,27 +99,60 @@ function findSpawnNearPlayer(playerX, playerZ) {
   return chosen;
 }
 
-function isProbablyMobileDevice() {
-  if (typeof window === 'undefined') return false;
+function Ground() {
+  const tiles = [];
+  for (let x = -50; x < 50; x += 5) {
+    for (let z = -50; z < 50; z += 5) {
+      const isWhite = (Math.floor((x + 50) / 5) + Math.floor((z + 50) / 5)) % 2 === 0;
+      tiles.push(
+        <mesh
+          key={`${x}-${z}`}
+          position={[x + 2.5, 0, z + 2.5]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
+        >
+          <planeGeometry args={[5, 5]} />
+          <meshStandardMaterial color={isWhite ? '#f0f0ea' : '#0f1014'} />
+        </mesh>
+      );
+    }
+  }
+
   return (
-    /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(navigator.userAgent) ||
-    window.matchMedia('(pointer: coarse)').matches ||
-    window.innerWidth < 900
+    <group>
+      {tiles}
+      <mesh position={[0, -0.03, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[110, 110]} />
+        <meshStandardMaterial color="#111" transparent opacity={0.18} />
+      </mesh>
+    </group>
   );
 }
 
-function Ground() {
+function CeilingLights() {
+  const lights = [
+    [-25, 5.8, -25],
+    [0, 5.8, -25],
+    [25, 5.8, -25],
+    [-25, 5.8, 5],
+    [0, 5.8, 5],
+    [25, 5.8, 5],
+    [-25, 5.8, 35],
+    [0, 5.8, 35],
+    [25, 5.8, 35],
+  ];
+
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[110, 110, 20, 20]} />
-        <meshStandardMaterial color="#3d3a3a" />
-      </mesh>
-
-      <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0, 42, 32]} />
-        <meshBasicMaterial color="#5c1515" side={THREE.DoubleSide} transparent opacity={0.28} />
-      </mesh>
+      {lights.map((pos, i) => (
+        <group key={i} position={pos}>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[8, 4]} />
+            <meshBasicMaterial color="#ffd89c" />
+          </mesh>
+          <pointLight intensity={1.2} distance={26} color="#ffd89c" />
+        </group>
+      ))}
     </group>
   );
 }
@@ -106,13 +164,8 @@ function Walls({ canExit }) {
   useFrame((state) => {
     if (!canExit) return;
     const wave = (Math.sin(state.clock.elapsedTime * 6) + 1) / 2;
-
-    if (zoneMatRef.current) {
-      zoneMatRef.current.opacity = 0.35 + wave * 0.35;
-    }
-    if (glowLightRef.current) {
-      glowLightRef.current.intensity = 1.8 + wave * 1.6;
-    }
+    if (zoneMatRef.current) zoneMatRef.current.opacity = 0.35 + wave * 0.3;
+    if (glowLightRef.current) glowLightRef.current.intensity = 1.8 + wave * 1.5;
   });
 
   return (
@@ -120,9 +173,37 @@ function Walls({ canExit }) {
       {WALLS.map((wall, i) => (
         <mesh key={i} position={[wall.x, WALL_HEIGHT / 2, wall.z]} castShadow receiveShadow>
           <boxGeometry args={[wall.w, WALL_HEIGHT, wall.d]} />
-          <meshStandardMaterial color={i % 2 ? '#7b1e1e' : '#5a1010'} />
+          <meshStandardMaterial color={i % 2 ? '#20232a' : '#2a2d34'} />
         </mesh>
       ))}
+
+      {/* stripe walls decorative */}
+      <mesh position={[0, 2.5, -46]}>
+        <boxGeometry args={[88, 2, 0.4]} />
+        <meshStandardMaterial color="#ffffff" />
+      </mesh>
+      <mesh position={[0, 1.1, -46]}>
+        <boxGeometry args={[88, 0.9, 0.5]} />
+        <meshStandardMaterial color="#0d0d10" />
+      </mesh>
+
+      <mesh position={[-46, 2.5, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[88, 2, 0.4]} />
+        <meshStandardMaterial color="#ffffff" />
+      </mesh>
+      <mesh position={[-46, 1.1, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[88, 0.9, 0.5]} />
+        <meshStandardMaterial color="#0d0d10" />
+      </mesh>
+
+      <mesh position={[46, 2.5, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[88, 2, 0.4]} />
+        <meshStandardMaterial color="#ffffff" />
+      </mesh>
+      <mesh position={[46, 1.1, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[88, 0.9, 0.5]} />
+        <meshStandardMaterial color="#0d0d10" />
+      </mesh>
 
       <mesh position={[EXIT_ZONE.x, 0.05, EXIT_ZONE.z]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[EXIT_ZONE.w, EXIT_ZONE.d]} />
@@ -130,7 +211,7 @@ function Walls({ canExit }) {
           ref={zoneMatRef}
           color={canExit ? '#56e17f' : '#7a2020'}
           transparent
-          opacity={canExit ? 0.55 : 0.25}
+          opacity={canExit ? 0.55 : 0.2}
           side={THREE.DoubleSide}
         />
       </mesh>
@@ -140,13 +221,13 @@ function Walls({ canExit }) {
           <pointLight
             ref={glowLightRef}
             position={[EXIT_ZONE.x, 3.5, EXIT_ZONE.z]}
-            intensity={2.4}
+            intensity={2.2}
             distance={18}
             color="#56e17f"
           />
           <Text
-            position={[EXIT_ZONE.x, 5.8, EXIT_ZONE.z]}
-            fontSize={1.5}
+            position={[EXIT_ZONE.x, 5.7, EXIT_ZONE.z]}
+            fontSize={1.45}
             color="#8fffaa"
             anchorX="center"
             anchorY="middle"
@@ -155,60 +236,93 @@ function Walls({ canExit }) {
           </Text>
         </>
       )}
-
-      {!canExit && (
-        <Text
-          position={[EXIT_ZONE.x, 5.8, EXIT_ZONE.z]}
-          fontSize={1.2}
-          color="#ffb0b0"
-          anchorX="center"
-          anchorY="middle"
-        >
-          COLLECT {REQUIRED_SCORE} POINTS
-        </Text>
-      )}
     </group>
   );
 }
 
-function DecorativeProps() {
-  const tables = useMemo(
-    () => [
-      [-35, -35],
-      [-35, 35],
-      [-2, -10],
-      [32, 34],
-      [34, -10],
-      [-6, 34],
-      [24, -34],
-      [-28, 4],
-      [6, 32],
-    ],
-    []
-  );
+function KitchenInspiredScene() {
+  const cakes = [
+    [-6, 1.4, -1],
+    [0, 1.4, -1],
+    [6, 1.4, -1],
+    [-6, 1.4, 4],
+    [0, 1.4, 4],
+    [6, 1.4, 4],
+  ];
+
+  const displaySides = [
+    [-36, 1.4, -4, 0],
+    [36, 1.4, -4, 0],
+    [-36, 1.4, 18, 0],
+    [36, 1.4, 18, 0],
+  ];
 
   return (
     <group>
-      {tables.map(([x, z], i) => (
-        <group key={i} position={[x, 0, z]}>
-          <mesh position={[0, 1.2, 0]} castShadow>
-            <cylinderGeometry args={[2.1, 2.3, 0.5, 12]} />
-            <meshStandardMaterial color="#b98a4d" />
+      {/* central island */}
+      <mesh position={[0, 0.75, 2]} castShadow receiveShadow>
+        <boxGeometry args={[18, 1.5, 10]} />
+        <meshStandardMaterial color="#8e8e8e" />
+      </mesh>
+
+      {/* top extractor-like block */}
+      <mesh position={[0, 4.8, 2]}>
+        <boxGeometry args={[14, 2, 8]} />
+        <meshStandardMaterial color="#9e9e9e" />
+      </mesh>
+
+      {/* rear stage / curtains */}
+      <mesh position={[0, 1.3, -41]} castShadow receiveShadow>
+        <boxGeometry args={[22, 2.6, 6]} />
+        <meshStandardMaterial color="#6a4a2d" />
+      </mesh>
+      <mesh position={[-4, 3.2, -43.8]}>
+        <boxGeometry args={[2.8, 4.2, 0.35]} />
+        <meshStandardMaterial color="#3d214b" />
+      </mesh>
+      <mesh position={[0, 3.2, -43.8]}>
+        <boxGeometry args={[2.8, 4.2, 0.35]} />
+        <meshStandardMaterial color="#24182d" />
+      </mesh>
+      <mesh position={[4, 3.2, -43.8]}>
+        <boxGeometry args={[2.8, 4.2, 0.35]} />
+        <meshStandardMaterial color="#3d214b" />
+      </mesh>
+
+      {/* side counters */}
+      {displaySides.map(([x, y, z], i) => (
+        <group key={i} position={[x, y, z]}>
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[10, 2.2, 4]} />
+            <meshStandardMaterial color="#f2f2f2" />
           </mesh>
-          <mesh position={[0, 0.55, 0]} castShadow>
-            <cylinderGeometry args={[0.4, 0.4, 1.2, 12]} />
-            <meshStandardMaterial color="#6b4d2c" />
+          <mesh position={[0, -0.9, 0]}>
+            <boxGeometry args={[10.2, 0.4, 4.2]} />
+            <meshStandardMaterial color="#6a5137" />
           </mesh>
         </group>
       ))}
 
-      <mesh position={[0, 2.5, -43]}>
-        <boxGeometry args={[18, 5, 1]} />
-        <meshStandardMaterial color="#ffcc44" emissive="#aa5522" />
-      </mesh>
+      {/* cakes / treasures decoration */}
+      {cakes.map(([x, y, z], i) => (
+        <group key={i} position={[x, y, z]}>
+          <mesh castShadow>
+            <cylinderGeometry args={[1.15, 1.15, 0.6, 16]} />
+            <meshStandardMaterial color="#a9582a" />
+          </mesh>
+          <mesh position={[0, 0.33, 0]}>
+            <cylinderGeometry args={[1.12, 1.12, 0.18, 16]} />
+            <meshStandardMaterial color="#f6f1ea" />
+          </mesh>
+          <mesh position={[0, 0.46, 0]}>
+            <sphereGeometry args={[0.13, 8, 8]} />
+            <meshStandardMaterial color="#d12c2c" />
+          </mesh>
+        </group>
+      ))}
 
-      <Text position={[0, 2.7, -42.3]} fontSize={2.3} color="black">
-        FREDBEAR PIZZA TEST
+      <Text position={[0, 5.6, -40.8]} fontSize={1.9} color="#ffd36d">
+        SNAF PIZZERIA
       </Text>
     </group>
   );
@@ -247,14 +361,37 @@ function Pickup({ item }) {
         <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={1.2} />
       </mesh>
       <pointLight intensity={0.9} distance={5} color={color} />
-      <Text
-        position={[0, 1.1, 0]}
-        fontSize={0.48}
-        color="white"
-        anchorX="center"
-        anchorY="middle"
-      >
+      <Text position={[0, 1.1, 0]} fontSize={0.48} color="white" anchorX="center" anchorY="middle">
         +{item.value}
+      </Text>
+    </group>
+  );
+}
+
+function ShieldPickup({ item }) {
+  const ref = useRef();
+
+  useFrame((state) => {
+    if (!ref.current) return;
+    ref.current.rotation.y += state.clock.getDelta() * 1.9;
+    ref.current.position.y = 1.25 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.16;
+  });
+
+  if (item.collected) return null;
+
+  return (
+    <group ref={ref} position={[item.x, 1.2, item.z]}>
+      <mesh>
+        <cylinderGeometry args={[0.9, 0.9, 0.2, 20]} />
+        <meshStandardMaterial color="#66b8ff" emissive="#17456a" emissiveIntensity={1.1} />
+      </mesh>
+      <mesh position={[0, 0, 0.12]}>
+        <ringGeometry args={[0.2, 0.52, 18]} />
+        <meshBasicMaterial color="#d4f0ff" side={THREE.DoubleSide} />
+      </mesh>
+      <pointLight intensity={0.9} distance={5} color="#66b8ff" />
+      <Text position={[0, 1.0, 0]} fontSize={0.42} color="white" anchorX="center" anchorY="middle">
+        SHIELD
       </Text>
     </group>
   );
@@ -277,19 +414,15 @@ function Enemy({ enemy }) {
 
   return (
     <group ref={ref}>
-      {/* torso */}
       <mesh castShadow position={[0, 1.2, 0]}>
         <boxGeometry args={[1.6, 2.2, 1.2]} />
         <meshBasicMaterial color={baseColor} />
       </mesh>
-
-      {/* head */}
       <mesh castShadow position={[0, 2.8, 0]}>
         <boxGeometry args={[1.35, 1.25, 1.1]} />
         <meshBasicMaterial color={baseColor} />
       </mesh>
 
-      {/* ears */}
       <mesh position={[-0.38, 3.55, 0]}>
         <boxGeometry args={[0.34, 0.7, 0.26]} />
         <meshBasicMaterial color="#7a4f1d" />
@@ -299,7 +432,6 @@ function Enemy({ enemy }) {
         <meshBasicMaterial color="#7a4f1d" />
       </mesh>
 
-      {/* eyes */}
       <mesh position={[-0.26, 2.95, 0.58]}>
         <sphereGeometry args={[0.14, 12, 12]} />
         <meshBasicMaterial color="#ff3b3b" />
@@ -309,7 +441,6 @@ function Enemy({ enemy }) {
         <meshBasicMaterial color="#ff3b3b" />
       </mesh>
 
-      {/* arms */}
       <mesh position={[-1.05, 1.55, 0]}>
         <boxGeometry args={[0.35, 1.4, 0.35]} />
         <meshBasicMaterial color={baseColor} />
@@ -319,7 +450,6 @@ function Enemy({ enemy }) {
         <meshBasicMaterial color={baseColor} />
       </mesh>
 
-      {/* legs */}
       <mesh position={[-0.4, 0.2, 0]}>
         <boxGeometry args={[0.42, 1.4, 0.42]} />
         <meshBasicMaterial color="#6b4120" />
@@ -329,7 +459,6 @@ function Enemy({ enemy }) {
         <meshBasicMaterial color="#6b4120" />
       </mesh>
 
-      {/* glow */}
       <pointLight intensity={2.2} distance={8} color="#ff5c5c" />
     </group>
   );
@@ -359,7 +488,7 @@ function EnemyLabels({ enemies, player }) {
   );
 }
 
-function Minimap({ player, pickups, enemies, isMobile }) {
+function Minimap({ player, pickups, shields, enemies, isMobile }) {
   const size = isMobile ? 132 : 180;
   const scale = size / MAP_W;
 
@@ -404,30 +533,44 @@ function Minimap({ player, pickups, enemies, isMobile }) {
         }}
       />
 
-      {pickups
-        .filter((p) => !p.collected)
-        .map((p) => {
-          const color =
-            p.value === 3 ? '#8a5cff' :
-            p.value === 2 ? '#44d6ff' :
-            '#ffd84d';
+      {pickups.filter((p) => !p.collected).map((p) => {
+        const color =
+          p.value === 3 ? '#8a5cff' :
+          p.value === 2 ? '#44d6ff' :
+          '#ffd84d';
 
-          return (
-            <div
-              key={p.id}
-              style={{
-                position: 'absolute',
-                width: 6 + p.value,
-                height: 6 + p.value,
-                borderRadius: 999,
-                left: size / 2 + p.x * scale - (3 + p.value / 2),
-                top: size / 2 + p.z * scale - (3 + p.value / 2),
-                background: color,
-                boxShadow: `0 0 8px ${color}`,
-              }}
-            />
-          );
-        })}
+        return (
+          <div
+            key={p.id}
+            style={{
+              position: 'absolute',
+              width: 6 + p.value,
+              height: 6 + p.value,
+              borderRadius: 999,
+              left: size / 2 + p.x * scale - (3 + p.value / 2),
+              top: size / 2 + p.z * scale - (3 + p.value / 2),
+              background: color,
+              boxShadow: `0 0 8px ${color}`,
+            }}
+          />
+        );
+      })}
+
+      {shields.filter((s) => !s.collected).map((s) => (
+        <div
+          key={s.id}
+          style={{
+            position: 'absolute',
+            width: 10,
+            height: 10,
+            borderRadius: 999,
+            left: size / 2 + s.x * scale - 5,
+            top: size / 2 + s.z * scale - 5,
+            background: '#66b8ff',
+            boxShadow: '0 0 10px #66b8ff',
+          }}
+        />
+      ))}
 
       {enemies.map((e) => (
         <div
@@ -457,15 +600,81 @@ function Minimap({ player, pickups, enemies, isMobile }) {
           boxShadow: '0 0 8px #67b7ff',
         }}
       />
-
-      <div style={{ position: 'absolute', left: 10, bottom: 8, color: 'white', fontSize: 12, letterSpacing: 1 }}>
-        MAPPA
-      </div>
     </div>
   );
 }
 
-function HUD({ game, onRestart, isMobile, gyroEnabled, canExit }) {
+function HandsAndWeapon({ camera, level, attackAnimRef }) {
+  const groupRef = useRef();
+  const leftHandRef = useRef();
+  const rightHandRef = useRef();
+  const weaponRef = useRef();
+
+  useEffect(() => {
+    const group = new THREE.Group();
+
+    const leftHand = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.22, 0.35),
+      new THREE.MeshStandardMaterial({ color: '#f1c27d' })
+    );
+
+    const rightHand = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.22, 0.35),
+      new THREE.MeshStandardMaterial({ color: '#f1c27d' })
+    );
+
+    let weapon = null;
+    if (level >= 2) {
+      weapon = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.14, 0.9 + (level - 2) * 0.4),
+        new THREE.MeshStandardMaterial({ color: level >= 5 ? '#9fd7ff' : '#8f6a45' })
+      );
+      group.add(weapon);
+    }
+
+    group.add(new THREE.AmbientLight(0xffffff, 1.4));
+    group.add(leftHand);
+    group.add(rightHand);
+
+    camera.add(group);
+
+    groupRef.current = group;
+    leftHandRef.current = leftHand;
+    rightHandRef.current = rightHand;
+    weaponRef.current = weapon;
+
+    return () => {
+      camera.remove(group);
+    };
+  }, [camera, level]);
+
+  useFrame(() => {
+    const left = leftHandRef.current;
+    const right = rightHandRef.current;
+    if (!left || !right) return;
+
+    const t = attackAnimRef.current;
+    const punch = Math.sin(Math.min(1, t) * Math.PI) * 0.42;
+    const sway = Math.sin(Math.min(1, t) * Math.PI) * 0.08;
+
+    left.position.set(-0.38 + sway, -0.33, -0.62 - punch * 0.55);
+    right.position.set(0.38 - sway, -0.35, -0.58 - punch);
+
+    left.rotation.set(-0.45, 0.35, 0.15 + punch * 0.3);
+    right.rotation.set(-0.5, -0.35, -0.12 - punch * 0.4);
+
+    if (weaponRef.current) {
+      weaponRef.current.position.set(0.47, -0.36, -1.02 - punch * 0.9);
+      weaponRef.current.rotation.set(-0.3, -0.15, -0.2 - punch * 0.1);
+    }
+  });
+
+  return null;
+}
+
+function HUD({ game, onRestart, onNextLevel, isMobile, gyroEnabled, canExit }) {
+  const levelCfg = getLevelConfig(game.level);
+
   return (
     <>
       <div
@@ -480,18 +689,21 @@ function HUD({ game, onRestart, isMobile, gyroEnabled, canExit }) {
         }}
       >
         <div style={{ fontSize: 24, fontWeight: 800 }}>{game.name || 'Player'}</div>
-        <div>Punti: {game.score} / {REQUIRED_SCORE}</div>
+        <div>Livello: {game.level}</div>
+        <div>Punti: {game.score} / {levelCfg.requiredScore}</div>
         <div>Mostri attivi: {game.enemies.length}</div>
         <div>Vita: {game.health}</div>
-        <div style={{ opacity: 0.8, marginTop: 8 }}>
+        <div>Scudi: {game.shieldsCount}</div>
+        <div>Portata arma: {levelCfg.attackRange.toFixed(1)}</div>
+        <div style={{ opacity: 0.85, marginTop: 8 }}>
           {isMobile
             ? `Pulsanti muovono • trascina a destra per guardare • pugno • gyro ${gyroEnabled ? 'ON' : 'OFF'}`
-            : 'WASD muovi • mouse guarda • F tira un pugno'}
+            : 'WASD muovi • mouse guarda • F attacca'}
         </div>
         <div style={{ marginTop: 8, color: canExit ? '#8fffaa' : '#ffd3a1', fontWeight: 700 }}>
           {canExit ? 'Uscita aperta: entra nella zona verde' : 'Raccogli abbastanza punti per aprire l’uscita'}
         </div>
-        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.88 }}>
           Tesori: giallo +1 • azzurro +2 • viola +3
         </div>
       </div>
@@ -513,7 +725,49 @@ function HUD({ game, onRestart, isMobile, gyroEnabled, canExit }) {
         </div>
       )}
 
-      {(game.status === 'lost' || game.status === 'won') && (
+      {game.status === 'levelComplete' && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.78)',
+            display: 'grid',
+            placeItems: 'center',
+            color: 'white',
+            fontFamily: 'sans-serif',
+            textAlign: 'center',
+            padding: 24,
+            zIndex: 60,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 40, fontWeight: 900, marginBottom: 10 }}>
+              LIVELLO {game.level} COMPLETATO
+            </div>
+            <div style={{ lineHeight: 1.5, maxWidth: 640 }}>
+              Passi al livello {game.level + 1}. I mostri saranno più numerosi e veloci.
+              La tua arma guadagnerà più portata.
+              {game.level + 1 >= 3 ? ' Dal prossimo livello potranno comparire anche gli scudi.' : ''}
+            </div>
+            <button
+              onClick={onNextLevel}
+              style={{
+                marginTop: 18,
+                padding: '12px 18px',
+                background: '#ffffff',
+                border: 'none',
+                borderRadius: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Vai al livello successivo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {game.status === 'lost' && (
         <div
           style={{
             position: 'absolute',
@@ -525,17 +779,15 @@ function HUD({ game, onRestart, isMobile, gyroEnabled, canExit }) {
             fontFamily: 'sans-serif',
             textAlign: 'center',
             padding: 24,
-            zIndex: 50,
+            zIndex: 60,
           }}
         >
           <div>
             <div style={{ fontSize: 42, fontWeight: 900, marginBottom: 12 }}>
-              {game.status === 'won' ? 'SEI SCAPPATO!' : 'TI HANNO PRESO!'}
+              TI HANNO PRESO!
             </div>
             <div style={{ maxWidth: 640, lineHeight: 1.5 }}>
-              {game.status === 'won'
-                ? 'Hai raccolto abbastanza punti e hai trovato l’uscita della pizzeria.'
-                : 'I personaggi animati ti hanno raggiunto prima della fuga.'}
+              Sei arrivato al livello {game.level}.
             </div>
             <button
               onClick={onRestart}
@@ -549,7 +801,7 @@ function HUD({ game, onRestart, isMobile, gyroEnabled, canExit }) {
                 cursor: 'pointer',
               }}
             >
-              Rigioca
+              Rigioca dal livello 1
             </button>
           </div>
         </div>
@@ -568,7 +820,7 @@ function Intro({ onStart, isMobile }) {
         inset: 0,
         display: 'grid',
         placeItems: 'center',
-        background: 'radial-gradient(circle at top, #411, #111)',
+        background: 'radial-gradient(circle at top, #3c1d1d, #111)',
         color: 'white',
         fontFamily: 'sans-serif',
         padding: 24,
@@ -578,24 +830,23 @@ function Intro({ onStart, isMobile }) {
         style={{
           maxWidth: 760,
           width: '100%',
-          background: 'rgba(0,0,0,0.5)',
+          background: 'rgba(0,0,0,0.55)',
           border: '1px solid #ffffff20',
           borderRadius: 20,
           padding: 24,
         }}
       >
-        <h1 style={{ marginTop: 0, fontSize: 40 }}>Pizzeria Escape Prototype</h1>
+        <h1 style={{ marginTop: 0, fontSize: 40 }}>SNAF Pizzeria Escape</h1>
         <p>
-          Vertical slice giocabile in browser: prima persona, punti da raccogliere, minimappa, mostri buffi ma inquietanti,
-          pugni per difendersi e uscita finale.
+          Scappa dalla pizzeria, raccogli tesori, sopravvivi ai mostri e supera livelli sempre più difficili.
         </p>
         <p>
-          Questa è una <strong>prima demo single-player</strong> delle meccaniche.
+          A ogni livello aumentano velocità e numero dei mostri. Dalla seconda arena ottieni un’arma più lunga.
+          Dal terzo livello possono apparire anche gli scudi.
         </p>
         {isMobile && (
           <p style={{ color: '#cfe7ff' }}>
-            Su mobile: usa la pulsantiera in basso a sinistra per muoverti, trascina a destra per girarti solo lateralmente,
-            oppure attiva il giroscopio.
+            Su mobile: pulsantiera in basso a sinistra, attacco a destra, visuale laterale trascinando a destra.
           </p>
         )}
         <input
@@ -615,10 +866,10 @@ function Intro({ onStart, isMobile }) {
   );
 }
 
-function CameraRig({ playerRef, isMobile, yawRef }) {
+function CameraRig({ playerRef, isMobile, yawRef, level, attackAnimRef }) {
   const { camera } = useThree();
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!playerRef.current) return;
     camera.position.copy(playerRef.current.position);
 
@@ -628,17 +879,22 @@ function CameraRig({ playerRef, isMobile, yawRef }) {
       camera.rotation.x = 0;
       camera.rotation.z = 0;
     }
+
+    if (attackAnimRef.current > 0) {
+      attackAnimRef.current = Math.max(0, attackAnimRef.current - delta * 3.2);
+    }
   });
 
-  return isMobile ? null : <PointerLockControls />;
+  return (
+    <>
+      {isMobile ? null : <PointerLockControls />}
+      <HandsAndWeapon camera={camera} level={level} attackAnimRef={attackAnimRef} />
+    </>
+  );
 }
 
 function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
-  const lookPadRef = useRef({
-    active: false,
-    touchId: null,
-    lastX: 0,
-  });
+  const lookPadRef = useRef({ active: false, touchId: null, lastX: 0 });
 
   const setDir = (key, value) => {
     mobileInputRef.current[key] = value;
@@ -657,7 +913,6 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
     if (gyroEnabled || !lookPadRef.current.active) return;
     const touch = Array.from(e.changedTouches).find((t) => t.identifier === lookPadRef.current.touchId);
     if (!touch) return;
-
     const dx = touch.clientX - lookPadRef.current.lastX;
     mobileInputRef.current.lookDeltaX += dx;
     lookPadRef.current.lastX = touch.clientX;
@@ -709,7 +964,6 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
             ↑
           </button>
         </div>
-
         <div style={{ position: 'absolute', left: 6, top: 63 }}>
           <button
             style={padButtonStyle}
@@ -720,7 +974,6 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
             ←
           </button>
         </div>
-
         <div style={{ position: 'absolute', left: 120, top: 63 }}>
           <button
             style={padButtonStyle}
@@ -731,7 +984,6 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
             →
           </button>
         </div>
-
         <div style={{ position: 'absolute', left: 63, top: 122 }}>
           <button
             style={padButtonStyle}
@@ -741,21 +993,6 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
           >
             ↓
           </button>
-        </div>
-
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            bottom: -24,
-            width: '100%',
-            textAlign: 'center',
-            color: 'rgba(255,255,255,0.8)',
-            fontSize: 12,
-            fontFamily: 'sans-serif',
-          }}
-        >
-          MOVIMENTO
         </div>
       </div>
 
@@ -792,7 +1029,7 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
           mobileInputRef.current.attack = false;
         }}
       >
-        PUGNO
+        ATTACCA
       </div>
 
       <button
@@ -832,36 +1069,6 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
           lookPadRef.current.touchId = null;
         }}
       />
-
-      <div
-        style={{
-          position: 'absolute',
-          right: 18,
-          bottom: 144,
-          color: 'rgba(255,255,255,0.8)',
-          fontSize: 12,
-          fontFamily: 'sans-serif',
-          zIndex: 25,
-          textAlign: 'right',
-          maxWidth: 140,
-        }}
-      >
-        {gyroEnabled ? 'Muovi il telefono a destra e sinistra' : 'Trascina a destra solo orizzontalmente'}
-      </div>
-
-      <div
-        style={{
-          position: 'absolute',
-          left: '50%',
-          bottom: 8,
-          transform: 'translateX(-50%)',
-          width: 24,
-          height: 24,
-          borderRadius: 999,
-          border: '2px solid rgba(255,255,255,0.9)',
-          zIndex: 20,
-        }}
-      />
     </>
   );
 }
@@ -871,11 +1078,13 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
   const playerRef = useRef(new THREE.Object3D());
   const lastSpawnRef = useRef(0);
   const hitCooldown = useRef(0);
-  const attackCooldown = useRef(0);
+  const attackCooldownRef = useRef(0);
   const yawRef = useRef(0);
   const gyroBaseRef = useRef(null);
+  const attackAnimRef = useRef(0);
 
-  const canExit = game.score >= REQUIRED_SCORE;
+  const levelCfg = getLevelConfig(game.level);
+  const canExit = game.score >= levelCfg.requiredScore;
 
   useEffect(() => {
     if (isMobile) return undefined;
@@ -893,7 +1102,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 
   useEffect(() => {
     playerRef.current.position.set(-40, 1.7, 40);
-  }, []);
+  }, [game.level]);
 
   useEffect(() => {
     if (!isMobile || !gyroEnabled) {
@@ -967,8 +1176,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
     }
     playerRef.current.position.y = 1.7;
 
-    attackCooldown.current -= delta;
-    hitCooldown.current -= delta;
+    attackCooldownRef.current -= delta;
 
     let nextPickups = game.pickups;
     let gained = 0;
@@ -981,11 +1189,21 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
       return p;
     });
 
+    let nextShields = game.shieldPickups;
+    let gainedShields = 0;
+    nextShields = nextShields.map((s) => {
+      if (!s.collected && playerRef.current.position.distanceTo(new THREE.Vector3(s.x, 1.7, s.z)) < 2.2) {
+        gainedShields += 1;
+        return { ...s, collected: true };
+      }
+      return s;
+    });
+
     let nextEnemies = game.enemies.map((enemy) => {
       const dx = playerRef.current.position.x - enemy.x;
       const dz = playerRef.current.position.z - enemy.z;
       const dist = Math.hypot(dx, dz) || 1;
-      const speed = enemy.alert ? 8 : 5;
+      const speed = enemy.alert ? levelCfg.enemySpeedAlert : levelCfg.enemySpeedIdle;
       const nx = enemy.x + (dx / dist) * speed * delta;
       const nz = enemy.z + (dz / dist) * speed * delta;
       const blocked = collidesWithWalls(nx, nz);
@@ -1001,27 +1219,36 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
     });
 
     const wantsAttack = isMobile ? mobileInputRef.current.attack : keys['KeyF'];
-    if (wantsAttack && attackCooldown.current <= 0) {
-      attackCooldown.current = 0.55;
+    if (wantsAttack && attackCooldownRef.current <= 0) {
+      attackCooldownRef.current = levelCfg.attackCooldown;
+      attackAnimRef.current = 1;
+
       nextEnemies = nextEnemies.filter((enemy) => {
         const dist = Math.hypot(playerRef.current.position.x - enemy.x, playerRef.current.position.z - enemy.z);
-        return dist > 3.1;
+        return dist > levelCfg.attackRange;
       });
     }
 
     let nextHealth = game.health;
-    if (hitCooldown.current <= 0) {
-      const touchingEnemy = nextEnemies.some(
-        (enemy) => Math.hypot(playerRef.current.position.x - enemy.x, playerRef.current.position.z - enemy.z) < 1.6
-      );
-      if (touchingEnemy) {
+    let nextShieldCount = game.shieldsCount + gainedShields;
+
+    const touchingEnemy = nextEnemies.some(
+      (enemy) => Math.hypot(playerRef.current.position.x - enemy.x, playerRef.current.position.z - enemy.z) < 1.5
+    );
+
+    if (touchingEnemy && hitCooldown.current <= 0) {
+      if (nextShieldCount > 0) {
+        nextShieldCount -= 1;
+      } else {
         nextHealth -= 1;
-        hitCooldown.current = 1.1;
       }
+      hitCooldown.current = 1.1;
+    } else {
+      hitCooldown.current -= delta;
     }
 
     const elapsed = state.clock.elapsedTime;
-    if (elapsed - lastSpawnRef.current > ENEMY_SPAWN_SECONDS && nextEnemies.length < ENEMY_MAX) {
+    if (elapsed - lastSpawnRef.current > levelCfg.enemySpawnSeconds && nextEnemies.length < levelCfg.enemyMax) {
       lastSpawnRef.current = elapsed;
       const spot = findSpawnNearPlayer(playerRef.current.position.x, playerRef.current.position.z);
       nextEnemies = nextEnemies.concat({
@@ -1042,14 +1269,16 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
       canExit &&
       rectContains(EXIT_ZONE, playerRef.current.position.x, playerRef.current.position.z, 0.35)
     ) {
-      nextStatus = 'won';
+      nextStatus = 'levelComplete';
     }
 
     setGame((prev) => ({
       ...prev,
       health: nextHealth,
       score: prev.score + gained,
+      shieldsCount: nextShieldCount,
       pickups: nextPickups,
+      shieldPickups: nextShields,
       enemies: nextEnemies,
       status: nextStatus,
       player: {
@@ -1061,17 +1290,25 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 
   return (
     <>
-      <CameraRig playerRef={playerRef} isMobile={isMobile} yawRef={yawRef} />
-      <ambientLight intensity={0.95} />
-      <directionalLight position={[10, 16, 5]} intensity={1.8} castShadow />
-      <pointLight position={[0, 6, -20]} intensity={1.4} distance={35} color="#ffb366" />
-      <fog attach="fog" args={['#130c0c', 40, 110]} />
+      <CameraRig
+        playerRef={playerRef}
+        isMobile={isMobile}
+        yawRef={yawRef}
+        level={game.level}
+        attackAnimRef={attackAnimRef}
+      />
+
+      <ambientLight intensity={0.9} />
+      <directionalLight position={[10, 16, 5]} intensity={1.6} castShadow />
+      <fog attach="fog" args={['#1a171c', 45, 120]} />
 
       <Ground />
+      <CeilingLights />
       <Walls canExit={canExit} />
-      <DecorativeProps />
+      <KitchenInspiredScene />
 
       {game.pickups.map((item) => <Pickup key={item.id} item={item} />)}
+      {game.shieldPickups.map((item) => <ShieldPickup key={item.id} item={item} />)}
       {game.enemies.map((enemy) => <Enemy key={enemy.id} enemy={enemy} />)}
       <EnemyLabels enemies={game.enemies} player={game.player} />
 
@@ -1089,15 +1326,15 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
   );
 }
 
-function createGame(name) {
-  const pickups = Array.from({ length: PICKUP_COUNT }, (_, i) => {
-    const pos = randomFreeSpot();
+function buildLevelState(name, level, previousState = null) {
+  const cfg = getLevelConfig(level);
 
+  const pickups = Array.from({ length: PICKUP_COUNT + Math.min(level * 2, 12) }, (_, i) => {
+    const pos = randomFreeSpot();
     const roll = Math.random();
     const value = roll < 0.55 ? 1 : roll < 0.85 ? 2 : 3;
-
     return {
-      id: i + 1,
+      id: `${level}-p-${i + 1}`,
       x: pos.x,
       z: pos.z,
       collected: false,
@@ -1105,13 +1342,26 @@ function createGame(name) {
     };
   });
 
+  const shieldPickups = Array.from({ length: cfg.shieldSpawnCount }, (_, i) => {
+    const pos = randomFreeSpot();
+    return {
+      id: `${level}-s-${i + 1}`,
+      x: pos.x,
+      z: pos.z,
+      collected: false,
+    };
+  });
+
   return {
     name,
+    level,
     status: 'playing',
     score: 0,
-    health: 6,
+    health: previousState ? Math.min(previousState.health + 1, 8) : 6,
+    shieldsCount: previousState ? previousState.shieldsCount : 0,
     player: { x: -40, z: 40 },
     pickups,
+    shieldPickups,
     enemies: [],
   };
 }
@@ -1150,8 +1400,20 @@ export default function App() {
     }
   };
 
+  const startGame = (name) => {
+    setGame(buildLevelState(name, 1));
+  };
+
+  const restartGame = () => {
+    setGame(buildLevelState(game?.name || 'Player', 1));
+  };
+
+  const goToNextLevel = () => {
+    setGame((prev) => buildLevelState(prev.name, prev.level + 1, prev));
+  };
+
   if (!game) {
-    return <Intro onStart={(name) => setGame(createGame(name))} isMobile={isMobile} />;
+    return <Intro onStart={startGame} isMobile={isMobile} />;
   }
 
   return (
@@ -1177,15 +1439,17 @@ export default function App() {
 
       <HUD
         game={game}
-        onRestart={() => setGame(createGame(game.name))}
+        onRestart={restartGame}
+        onNextLevel={goToNextLevel}
         isMobile={isMobile}
         gyroEnabled={gyroEnabled}
-        canExit={game.score >= REQUIRED_SCORE}
+        canExit={game.score >= getLevelConfig(game.level).requiredScore}
       />
 
       <Minimap
         player={game.player}
         pickups={game.pickups}
+        shields={game.shieldPickups}
         enemies={game.enemies}
         isMobile={isMobile}
       />
