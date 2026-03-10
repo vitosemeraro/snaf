@@ -11,13 +11,12 @@ const REQUIRED_SCORE = 10;
 const ENEMY_SPAWN_SECONDS = 8;
 const ENEMY_MAX = 5;
 
-// Apertura reale nel muro superiore in corrispondenza dell'uscita
+// Apertura reale nel muro superiore per l'uscita
 const WALLS = [
   { x: 0, z: -48, w: 96, d: 4 },
   { x: -48, z: 0, w: 4, d: 96 },
   { x: 48, z: 0, w: 4, d: 96 },
 
-  // muro superiore spezzato: apertura verso destra
   { x: -10, z: 48, w: 70, d: 4 },
   { x: 34, z: 48, w: 16, d: 4 },
 
@@ -31,7 +30,6 @@ const WALLS = [
   { x: -4, z: -38, w: 26, d: 4 },
 ];
 
-// Zona di uscita dentro il varco superiore
 const EXIT_ZONE = { x: 40, z: 44.5, w: 12, d: 7 };
 
 function clamp(value, min, max) {
@@ -92,6 +90,7 @@ function Ground() {
         <planeGeometry args={[110, 110, 20, 20]} />
         <meshStandardMaterial color="#3d3a3a" />
       </mesh>
+
       <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0, 42, 32]} />
         <meshBasicMaterial color="#5c1515" side={THREE.DoubleSide} transparent opacity={0.28} />
@@ -219,19 +218,45 @@ function Pickup({ item }) {
   const ref = useRef();
 
   useFrame((state) => {
-    if (ref.current) {
-      ref.current.rotation.y += state.clock.getDelta() * 1.5;
-      ref.current.position.y = 1.1 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.18;
-    }
+    if (!ref.current) return;
+    ref.current.rotation.y += state.clock.getDelta() * 1.5;
+    ref.current.position.y = 1.05 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.18;
   });
 
   if (item.collected) return null;
 
+  const color =
+    item.value === 3 ? '#8a5cff' :
+    item.value === 2 ? '#44d6ff' :
+    '#ffd84d';
+
+  const emissive =
+    item.value === 3 ? '#35107a' :
+    item.value === 2 ? '#0b5670' :
+    '#b87900';
+
+  const size =
+    item.value === 3 ? 1.0 :
+    item.value === 2 ? 0.82 :
+    0.7;
+
   return (
-    <mesh ref={ref} position={[item.x, 1.1, item.z]} castShadow>
-      <octahedronGeometry args={[0.7, 0]} />
-      <meshStandardMaterial color="#ffd84d" emissive="#b87900" />
-    </mesh>
+    <group ref={ref} position={[item.x, 1.1, item.z]}>
+      <mesh castShadow>
+        <octahedronGeometry args={[size, 0]} />
+        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={1.2} />
+      </mesh>
+      <pointLight intensity={0.9} distance={5} color={color} />
+      <Text
+        position={[0, 1.1, 0]}
+        fontSize={0.48}
+        color="white"
+        anchorX="center"
+        anchorY="middle"
+      >
+        +{item.value}
+      </Text>
+    </group>
   );
 }
 
@@ -240,39 +265,72 @@ function Enemy({ enemy }) {
 
   useFrame((state) => {
     if (!ref.current) return;
-    ref.current.position.set(enemy.x, 1.9, enemy.z);
+    ref.current.position.set(enemy.x, 1.85, enemy.z);
     ref.current.rotation.y = enemy.rotation;
-    ref.current.position.y += Math.sin(state.clock.elapsedTime * 4 + enemy.id) * 0.08;
+    ref.current.position.y += Math.sin(state.clock.elapsedTime * 4 + enemy.phase) * 0.08;
   });
+
+  const baseColor =
+    enemy.variant === 1 ? '#7e5fff' :
+    enemy.variant === 2 ? '#e4a04a' :
+    '#c79b6a';
 
   return (
     <group ref={ref}>
-      <mesh castShadow>
-        <capsuleGeometry args={[1.05, 2.1, 4, 8]} />
-        <meshStandardMaterial color="#d5a46b" emissive="#3a1a1a" emissiveIntensity={0.9} />
+      {/* torso */}
+      <mesh castShadow position={[0, 1.2, 0]}>
+        <boxGeometry args={[1.6, 2.2, 1.2]} />
+        <meshBasicMaterial color={baseColor} />
       </mesh>
 
-      <mesh position={[0, 1.45, 0.95]}>
-        <sphereGeometry args={[0.2, 12, 12]} />
-        <meshBasicMaterial color="#ff4040" />
+      {/* head */}
+      <mesh castShadow position={[0, 2.8, 0]}>
+        <boxGeometry args={[1.35, 1.25, 1.1]} />
+        <meshBasicMaterial color={baseColor} />
       </mesh>
 
-      <mesh position={[0.5, 1.45, 0.82]}>
-        <sphereGeometry args={[0.2, 12, 12]} />
-        <meshBasicMaterial color="#ff4040" />
+      {/* ears */}
+      <mesh position={[-0.38, 3.55, 0]}>
+        <boxGeometry args={[0.34, 0.7, 0.26]} />
+        <meshBasicMaterial color="#7a4f1d" />
+      </mesh>
+      <mesh position={[0.38, 3.55, 0]}>
+        <boxGeometry args={[0.34, 0.7, 0.26]} />
+        <meshBasicMaterial color="#7a4f1d" />
       </mesh>
 
-      <mesh position={[0.24, 2.55, 0]} rotation={[0, 0, -0.2]}>
-        <coneGeometry args={[0.42, 1.0, 12]} />
-        <meshStandardMaterial color="#7a4f1d" />
+      {/* eyes */}
+      <mesh position={[-0.26, 2.95, 0.58]}>
+        <sphereGeometry args={[0.14, 12, 12]} />
+        <meshBasicMaterial color="#ff3b3b" />
+      </mesh>
+      <mesh position={[0.26, 2.95, 0.58]}>
+        <sphereGeometry args={[0.14, 12, 12]} />
+        <meshBasicMaterial color="#ff3b3b" />
       </mesh>
 
-      <mesh position={[-0.24, 2.55, 0]} rotation={[0, 0, 0.2]}>
-        <coneGeometry args={[0.42, 1.0, 12]} />
-        <meshStandardMaterial color="#7a4f1d" />
+      {/* arms */}
+      <mesh position={[-1.05, 1.55, 0]}>
+        <boxGeometry args={[0.35, 1.4, 0.35]} />
+        <meshBasicMaterial color={baseColor} />
+      </mesh>
+      <mesh position={[1.05, 1.55, 0]}>
+        <boxGeometry args={[0.35, 1.4, 0.35]} />
+        <meshBasicMaterial color={baseColor} />
       </mesh>
 
-      <pointLight intensity={1.8} distance={7} color="#ff5c5c" />
+      {/* legs */}
+      <mesh position={[-0.4, 0.2, 0]}>
+        <boxGeometry args={[0.42, 1.4, 0.42]} />
+        <meshBasicMaterial color="#6b4120" />
+      </mesh>
+      <mesh position={[0.4, 0.2, 0]}>
+        <boxGeometry args={[0.42, 1.4, 0.42]} />
+        <meshBasicMaterial color="#6b4120" />
+      </mesh>
+
+      {/* glow */}
+      <pointLight intensity={2.2} distance={8} color="#ff5c5c" />
     </group>
   );
 }
@@ -287,7 +345,7 @@ function EnemyLabels({ enemies, player }) {
         return (
           <Text
             key={`enemy-label-${enemy.id}`}
-            position={[enemy.x, 4.6, enemy.z]}
+            position={[enemy.x, 4.9, enemy.z]}
             fontSize={0.8}
             color="#ff7a7a"
             anchorX="center"
@@ -348,20 +406,28 @@ function Minimap({ player, pickups, enemies, isMobile }) {
 
       {pickups
         .filter((p) => !p.collected)
-        .map((p) => (
-          <div
-            key={p.id}
-            style={{
-              position: 'absolute',
-              width: 6,
-              height: 6,
-              borderRadius: 999,
-              left: size / 2 + p.x * scale - 3,
-              top: size / 2 + p.z * scale - 3,
-              background: '#ffd84d',
-            }}
-          />
-        ))}
+        .map((p) => {
+          const color =
+            p.value === 3 ? '#8a5cff' :
+            p.value === 2 ? '#44d6ff' :
+            '#ffd84d';
+
+          return (
+            <div
+              key={p.id}
+              style={{
+                position: 'absolute',
+                width: 6 + p.value,
+                height: 6 + p.value,
+                borderRadius: 999,
+                left: size / 2 + p.x * scale - (3 + p.value / 2),
+                top: size / 2 + p.z * scale - (3 + p.value / 2),
+                background: color,
+                boxShadow: `0 0 8px ${color}`,
+              }}
+            />
+          );
+        })}
 
       {enemies.map((e) => (
         <div
@@ -424,6 +490,9 @@ function HUD({ game, onRestart, isMobile, gyroEnabled, canExit }) {
         </div>
         <div style={{ marginTop: 8, color: canExit ? '#8fffaa' : '#ffd3a1', fontWeight: 700 }}>
           {canExit ? 'Uscita aperta: entra nella zona verde' : 'Raccogli abbastanza punti per aprire l’uscita'}
+        </div>
+        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+          Tesori: giallo +1 • azzurro +2 • viola +3
         </div>
       </div>
 
@@ -521,7 +590,7 @@ function Intro({ onStart, isMobile }) {
           pugni per difendersi e uscita finale.
         </p>
         <p>
-          Questa è una <strong>prima demo single-player</strong> delle meccaniche. Il multiplayer reale via URL e nome richiederà un piccolo server Node + WebSocket.
+          Questa è una <strong>prima demo single-player</strong> delle meccaniche.
         </p>
         {isMobile && (
           <p style={{ color: '#cfe7ff' }}>
@@ -906,7 +975,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 
     nextPickups = nextPickups.map((p) => {
       if (!p.collected && playerRef.current.position.distanceTo(new THREE.Vector3(p.x, 1.7, p.z)) < 2.2) {
-        gained += 1;
+        gained += p.value;
         return { ...p, collected: true };
       }
       return p;
@@ -961,6 +1030,8 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
         z: spot.z,
         alert: false,
         rotation: 0,
+        phase: Math.random() * 10,
+        variant: Math.floor(Math.random() * 3),
       });
     }
 
@@ -991,10 +1062,10 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
   return (
     <>
       <CameraRig playerRef={playerRef} isMobile={isMobile} yawRef={yawRef} />
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[10, 16, 5]} intensity={1.6} castShadow />
-      <pointLight position={[0, 6, -20]} intensity={1.1} distance={35} color="#ffb366" />
-      <fog attach="fog" args={['#130c0c', 35, 90]} />
+      <ambientLight intensity={0.95} />
+      <directionalLight position={[10, 16, 5]} intensity={1.8} castShadow />
+      <pointLight position={[0, 6, -20]} intensity={1.4} distance={35} color="#ffb366" />
+      <fog attach="fog" args={['#130c0c', 40, 110]} />
 
       <Ground />
       <Walls canExit={canExit} />
@@ -1021,7 +1092,17 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 function createGame(name) {
   const pickups = Array.from({ length: PICKUP_COUNT }, (_, i) => {
     const pos = randomFreeSpot();
-    return { id: i + 1, x: pos.x, z: pos.z, collected: false };
+
+    const roll = Math.random();
+    const value = roll < 0.55 ? 1 : roll < 0.85 ? 2 : 3;
+
+    return {
+      id: i + 1,
+      x: pos.x,
+      z: pos.z,
+      collected: false,
+      value,
+    };
   });
 
   return {
