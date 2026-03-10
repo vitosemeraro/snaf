@@ -481,127 +481,10 @@ function EnemyLabels({ enemies, player }) {
   );
 }
 
-function Minimap({ player, pickups, shields, enemies, isMobile }) {
-  const size = isMobile ? 132 : 180;
-  const scale = size / MAP_W;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        right: isMobile ? 10 : 16,
-        top: isMobile ? 10 : 16,
-        width: size,
-        height: size,
-        background: 'rgba(0,0,0,0.72)',
-        border: '2px solid #ffffff33',
-        borderRadius: 10,
-        overflow: 'hidden',
-        zIndex: 20,
-      }}
-    >
-      {WALLS.map((w, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            left: size / 2 + (w.x - w.w / 2) * scale,
-            top: size / 2 + (w.z - w.d / 2) * scale,
-            width: w.w * scale,
-            height: w.d * scale,
-            background: '#8f2a2a',
-          }}
-        />
-      ))}
-
-      <div
-        style={{
-          position: 'absolute',
-          left: size / 2 + (EXIT_ZONE.x - EXIT_ZONE.w / 2) * scale,
-          top: size / 2 + (EXIT_ZONE.z - EXIT_ZONE.d / 2) * scale,
-          width: EXIT_ZONE.w * scale,
-          height: EXIT_ZONE.d * scale,
-          border: '2px solid #56e17f',
-          background: 'rgba(86,225,127,0.25)',
-        }}
-      />
-
-      {pickups.filter((p) => !p.collected).map((p) => {
-        const color =
-          p.value === 3 ? '#8a5cff' :
-          p.value === 2 ? '#44d6ff' :
-          '#ffd84d';
-
-        return (
-          <div
-            key={p.id}
-            style={{
-              position: 'absolute',
-              width: 6 + p.value,
-              height: 6 + p.value,
-              borderRadius: 999,
-              left: size / 2 + p.x * scale - (3 + p.value / 2),
-              top: size / 2 + p.z * scale - (3 + p.value / 2),
-              background: color,
-              boxShadow: `0 0 8px ${color}`,
-            }}
-          />
-        );
-      })}
-
-      {shields.filter((s) => !s.collected).map((s) => (
-        <div
-          key={s.id}
-          style={{
-            position: 'absolute',
-            width: 10,
-            height: 10,
-            borderRadius: 999,
-            left: size / 2 + s.x * scale - 5,
-            top: size / 2 + s.z * scale - 5,
-            background: '#66b8ff',
-            boxShadow: '0 0 10px #66b8ff',
-          }}
-        />
-      ))}
-
-      {enemies.map((e) => (
-        <div
-          key={e.id}
-          style={{
-            position: 'absolute',
-            width: 8,
-            height: 8,
-            borderRadius: 999,
-            left: size / 2 + e.x * scale - 4,
-            top: size / 2 + e.z * scale - 4,
-            background: '#ff5c5c',
-            boxShadow: '0 0 10px #ff5c5c',
-          }}
-        />
-      ))}
-
-      <div
-        style={{
-          position: 'absolute',
-          width: 10,
-          height: 10,
-          borderRadius: 999,
-          left: size / 2 + player.x * scale - 5,
-          top: size / 2 + player.z * scale - 5,
-          background: '#67b7ff',
-          boxShadow: '0 0 8px #67b7ff',
-        }}
-      />
-    </div>
-  );
-}
-
 function HandsAndWeapon({ camera, level, attackAnimRef }) {
   const leftHandRef = useRef();
   const rightHandRef = useRef();
   const weaponRef = useRef();
-  const groupRef = useRef();
 
   useEffect(() => {
     const group = new THREE.Group();
@@ -631,7 +514,6 @@ function HandsAndWeapon({ camera, level, attackAnimRef }) {
 
     camera.add(group);
 
-    groupRef.current = group;
     leftHandRef.current = leftHand;
     rightHandRef.current = rightHand;
     weaponRef.current = weapon;
@@ -754,44 +636,16 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
         }}
       >
         <div style={{ position: 'absolute', left: 63, top: 4 }}>
-          <button
-            style={padButtonStyle}
-            onTouchStart={(e) => { e.preventDefault(); setDir('forward', true); }}
-            onTouchEnd={(e) => { e.preventDefault(); setDir('forward', false); }}
-            onTouchCancel={(e) => { e.preventDefault(); setDir('forward', false); }}
-          >
-            ↑
-          </button>
+          <button style={padButtonStyle} onTouchStart={(e) => { e.preventDefault(); setDir('forward', true); }} onTouchEnd={(e) => { e.preventDefault(); setDir('forward', false); }} onTouchCancel={(e) => { e.preventDefault(); setDir('forward', false); }}>↑</button>
         </div>
         <div style={{ position: 'absolute', left: 6, top: 63 }}>
-          <button
-            style={padButtonStyle}
-            onTouchStart={(e) => { e.preventDefault(); setDir('left', true); }}
-            onTouchEnd={(e) => { e.preventDefault(); setDir('left', false); }}
-            onTouchCancel={(e) => { e.preventDefault(); setDir('left', false); }}
-          >
-            ←
-          </button>
+          <button style={padButtonStyle} onTouchStart={(e) => { e.preventDefault(); setDir('left', true); }} onTouchEnd={(e) => { e.preventDefault(); setDir('left', false); }} onTouchCancel={(e) => { e.preventDefault(); setDir('left', false); }}>←</button>
         </div>
         <div style={{ position: 'absolute', left: 120, top: 63 }}>
-          <button
-            style={padButtonStyle}
-            onTouchStart={(e) => { e.preventDefault(); setDir('right', true); }}
-            onTouchEnd={(e) => { e.preventDefault(); setDir('right', false); }}
-            onTouchCancel={(e) => { e.preventDefault(); setDir('right', false); }}
-          >
-            →
-          </button>
+          <button style={padButtonStyle} onTouchStart={(e) => { e.preventDefault(); setDir('right', true); }} onTouchEnd={(e) => { e.preventDefault(); setDir('right', false); }} onTouchCancel={(e) => { e.preventDefault(); setDir('right', false); }}>→</button>
         </div>
         <div style={{ position: 'absolute', left: 63, top: 122 }}>
-          <button
-            style={padButtonStyle}
-            onTouchStart={(e) => { e.preventDefault(); setDir('back', true); }}
-            onTouchEnd={(e) => { e.preventDefault(); setDir('back', false); }}
-            onTouchCancel={(e) => { e.preventDefault(); setDir('back', false); }}
-          >
-            ↓
-          </button>
+          <button style={padButtonStyle} onTouchStart={(e) => { e.preventDefault(); setDir('back', true); }} onTouchEnd={(e) => { e.preventDefault(); setDir('back', false); }} onTouchCancel={(e) => { e.preventDefault(); setDir('back', false); }}>↓</button>
         </div>
       </div>
 
@@ -809,8 +663,6 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
           placeItems: 'center',
           zIndex: 25,
           touchAction: 'none',
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
           color: 'white',
           fontWeight: 800,
           fontSize: 18,
@@ -868,6 +720,119 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
           lookPadRef.current.touchId = null;
         }}
       />
+    </>
+  );
+}
+
+function HUD({ game, onRestart, onNextLevel, isMobile, gyroEnabled, canExit }) {
+  const levelCfg = getLevelConfig(game.level);
+
+  return (
+    <>
+      <div
+        style={{
+          position: 'absolute',
+          left: 16,
+          top: 16,
+          color: 'white',
+          fontFamily: 'sans-serif',
+          zIndex: 20,
+          maxWidth: isMobile ? '58vw' : 'none',
+        }}
+      >
+        <div style={{ fontSize: 24, fontWeight: 800 }}>{game.name || 'Player'}</div>
+        <div>Livello: {game.level}</div>
+        <div>Punti: {game.score} / {levelCfg.requiredScore}</div>
+        <div>Mostri attivi: {game.enemies.length}</div>
+        <div>Vita: {game.health}</div>
+        <div>Scudi: {game.shieldsCount}</div>
+        <div>Portata arma: {levelCfg.attackRange.toFixed(1)}</div>
+        <div style={{ opacity: 0.85, marginTop: 8 }}>
+          {isMobile
+            ? `Pulsanti muovono • trascina a destra per guardare • attacco • gyro ${gyroEnabled ? 'ON' : 'OFF'}`
+            : 'WASD muovi • mouse guarda • F attacca'}
+        </div>
+        <div style={{ marginTop: 8, color: canExit ? '#8fffaa' : '#ffd3a1', fontWeight: 700 }}>
+          {canExit ? 'Uscita aperta: entra nella zona verde' : 'Raccogli abbastanza punti per aprire l’uscita'}
+        </div>
+      </div>
+
+      {game.status === 'levelComplete' && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.78)',
+            display: 'grid',
+            placeItems: 'center',
+            color: 'white',
+            fontFamily: 'sans-serif',
+            textAlign: 'center',
+            padding: 24,
+            zIndex: 60,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 40, fontWeight: 900, marginBottom: 10 }}>
+              LIVELLO {game.level} COMPLETATO
+            </div>
+            <div style={{ lineHeight: 1.5, maxWidth: 640 }}>
+              Passi al livello {game.level + 1}. I mostri saranno più numerosi e veloci.
+            </div>
+            <button
+              onClick={onNextLevel}
+              style={{
+                marginTop: 18,
+                padding: '12px 18px',
+                background: '#ffffff',
+                border: 'none',
+                borderRadius: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Vai al livello successivo
+            </button>
+          </div>
+        </div>
+      )}
+
+      {game.status === 'lost' && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.8)',
+            display: 'grid',
+            placeItems: 'center',
+            color: 'white',
+            fontFamily: 'sans-serif',
+            textAlign: 'center',
+            padding: 24,
+            zIndex: 60,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 42, fontWeight: 900, marginBottom: 12 }}>
+              TI HANNO PRESO!
+            </div>
+            <button
+              onClick={onRestart}
+              style={{
+                marginTop: 18,
+                padding: '12px 18px',
+                background: '#ffffff',
+                border: 'none',
+                borderRadius: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Rigioca dal livello 1
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -1064,10 +1029,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
     let nextStatus = game.status;
     if (nextHealth <= 0) nextStatus = 'lost';
 
-    if (
-      canExit &&
-      rectContains(EXIT_ZONE, playerRef.current.position.x, playerRef.current.position.z, 0.35)
-    ) {
+    if (canExit && rectContains(EXIT_ZONE, playerRef.current.position.x, playerRef.current.position.z, 0.35)) {
       nextStatus = 'levelComplete';
     }
 
@@ -1187,16 +1149,10 @@ function Intro({ onStart, isMobile }) {
         }}
       >
         <h1 style={{ marginTop: 0, fontSize: 40 }}>SNAF Pizzeria Escape</h1>
-        <p>
-          Scappa dalla pizzeria, raccogli tesori, sopravvivi ai mostri e supera livelli sempre più difficili.
-        </p>
-        <p>
-          A ogni livello aumentano velocità e numero dei mostri. Dalla seconda arena ottieni un’arma più lunga.
-          Dal terzo livello possono apparire anche gli scudi.
-        </p>
+        <p>Scappa dalla pizzeria, raccogli tesori e sopravvivi ai mostri.</p>
         {isMobile && (
           <p style={{ color: '#cfe7ff' }}>
-            Su mobile: pulsantiera in basso a sinistra, attacco a destra, visuale laterale trascinando a destra.
+            Su mobile: pulsantiera a sinistra, attacco a destra, visuale trascinando a destra.
           </p>
         )}
         <input
