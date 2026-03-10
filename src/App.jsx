@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PointerLockControls, Html, Text } from '@react-three/drei';
+import { PointerLockControls, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
 const MAP_W = 100;
@@ -8,45 +8,8 @@ const WALL_HEIGHT = 6;
 const PLAYER_RADIUS = 1.2;
 const BASE_REQUIRED_SCORE = 10;
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function rectContains(rect, x, z, margin = 0) {
-  return (
-    x > rect.x - rect.w / 2 - margin &&
-    x < rect.x + rect.w / 2 + margin &&
-    z > rect.z - rect.d / 2 - margin &&
-    z < rect.z + rect.d / 2 + margin
-  );
-}
-
-function isProbablyMobileDevice() {
-  if (typeof window === 'undefined') return false;
-  return (
-    /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(navigator.userAgent) ||
-    window.matchMedia('(pointer: coarse)').matches ||
-    window.innerWidth < 900
-  );
-}
-
-function getLevelConfig(level) {
-  return {
-    level,
-    requiredScore: BASE_REQUIRED_SCORE + (level - 1) * 3,
-    enemyMax: Math.min(4 + level * 2, 20),
-    enemySpawnSeconds: Math.max(7 - level * 0.45, 2.2),
-    enemySpeedIdle: 3.4 + level * 0.25,
-    enemySpeedAlert: 5.2 + level * 0.55,
-    attackRange: 2.8 + (level - 1) * 1.15,
-    attackCooldown: Math.max(0.6 - (level - 1) * 0.03, 0.28),
-    shieldSpawnCount: level >= 3 ? Math.min(1 + Math.floor((level - 3) / 2), 4) : 0,
-  };
-}
-
 const EXIT_ZONE = { x: 40, z: 44.5, w: 12, d: 7 };
 
-// apertura vera nel muro in alto a destra
 const WALLS = [
   { x: 0, z: -48, w: 96, d: 4 },
   { x: -48, z: 0, w: 4, d: 96 },
@@ -65,6 +28,19 @@ const WALLS = [
   { x: -4, z: -38, w: 26, d: 4 },
 ];
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function rectContains(rect, x, z, margin = 0) {
+  return (
+    x > rect.x - rect.w / 2 - margin &&
+    x < rect.x + rect.w / 2 + margin &&
+    z > rect.z - rect.d / 2 - margin &&
+    z < rect.z + rect.d / 2 + margin
+  );
+}
+
 function collidesWithWalls(x, z) {
   return WALLS.some((wall) => rectContains(wall, x, z, PLAYER_RADIUS));
 }
@@ -73,7 +49,6 @@ function randomFreeSpot() {
   for (let i = 0; i < 500; i++) {
     const x = THREE.MathUtils.randFloatSpread(80);
     const z = THREE.MathUtils.randFloatSpread(80);
-
     const blocked =
       collidesWithWalls(x, z) ||
       rectContains(EXIT_ZONE, x, z, 5) ||
@@ -97,6 +72,29 @@ function findSpawnNearPlayer(playerX, playerZ) {
   }
 
   return chosen;
+}
+
+function isProbablyMobileDevice() {
+  if (typeof window === 'undefined') return false;
+  return (
+    /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(navigator.userAgent) ||
+    window.matchMedia('(pointer: coarse)').matches ||
+    window.innerWidth < 900
+  );
+}
+
+function getLevelConfig(level) {
+  return {
+    level,
+    requiredScore: BASE_REQUIRED_SCORE + (level - 1) * 3,
+    enemyMax: Math.min(4 + level * 2, 20),
+    enemySpawnSeconds: Math.max(7 - level * 0.45, 2.2),
+    enemySpeedIdle: 3.4 + level * 0.25,
+    enemySpeedAlert: 5.2 + level * 0.55,
+    attackRange: 2.8 + (level - 1) * 1.15,
+    attackCooldown: Math.max(0.6 - (level - 1) * 0.03, 0.28),
+    shieldSpawnCount: level >= 3 ? Math.min(1 + Math.floor((level - 3) / 2), 4) : 0,
+  };
 }
 
 function Ground() {
@@ -177,7 +175,6 @@ function Walls({ canExit }) {
         </mesh>
       ))}
 
-      {/* stripe walls decorative */}
       <mesh position={[0, 2.5, -46]}>
         <boxGeometry args={[88, 2, 0.4]} />
         <meshStandardMaterial color="#ffffff" />
@@ -251,31 +248,29 @@ function KitchenInspiredScene() {
   ];
 
   const displaySides = [
-    [-36, 1.4, -4, 0],
-    [36, 1.4, -4, 0],
-    [-36, 1.4, 18, 0],
-    [36, 1.4, 18, 0],
+    [-36, 1.4, -4],
+    [36, 1.4, -4],
+    [-36, 1.4, 18],
+    [36, 1.4, 18],
   ];
 
   return (
     <group>
-      {/* central island */}
       <mesh position={[0, 0.75, 2]} castShadow receiveShadow>
         <boxGeometry args={[18, 1.5, 10]} />
         <meshStandardMaterial color="#8e8e8e" />
       </mesh>
 
-      {/* top extractor-like block */}
       <mesh position={[0, 4.8, 2]}>
         <boxGeometry args={[14, 2, 8]} />
         <meshStandardMaterial color="#9e9e9e" />
       </mesh>
 
-      {/* rear stage / curtains */}
       <mesh position={[0, 1.3, -41]} castShadow receiveShadow>
         <boxGeometry args={[22, 2.6, 6]} />
         <meshStandardMaterial color="#6a4a2d" />
       </mesh>
+
       <mesh position={[-4, 3.2, -43.8]}>
         <boxGeometry args={[2.8, 4.2, 0.35]} />
         <meshStandardMaterial color="#3d214b" />
@@ -289,7 +284,6 @@ function KitchenInspiredScene() {
         <meshStandardMaterial color="#3d214b" />
       </mesh>
 
-      {/* side counters */}
       {displaySides.map(([x, y, z], i) => (
         <group key={i} position={[x, y, z]}>
           <mesh castShadow receiveShadow>
@@ -303,7 +297,6 @@ function KitchenInspiredScene() {
         </group>
       ))}
 
-      {/* cakes / treasures decoration */}
       {cakes.map(([x, y, z], i) => (
         <group key={i} position={[x, y, z]}>
           <mesh castShadow>
@@ -605,10 +598,10 @@ function Minimap({ player, pickups, shields, enemies, isMobile }) {
 }
 
 function HandsAndWeapon({ camera, level, attackAnimRef }) {
-  const groupRef = useRef();
   const leftHandRef = useRef();
   const rightHandRef = useRef();
   const weaponRef = useRef();
+  const groupRef = useRef();
 
   useEffect(() => {
     const group = new THREE.Group();
@@ -623,6 +616,10 @@ function HandsAndWeapon({ camera, level, attackAnimRef }) {
       new THREE.MeshStandardMaterial({ color: '#f1c27d' })
     );
 
+    group.add(new THREE.AmbientLight(0xffffff, 1.4));
+    group.add(leftHand);
+    group.add(rightHand);
+
     let weapon = null;
     if (level >= 2) {
       weapon = new THREE.Mesh(
@@ -631,10 +628,6 @@ function HandsAndWeapon({ camera, level, attackAnimRef }) {
       );
       group.add(weapon);
     }
-
-    group.add(new THREE.AmbientLight(0xffffff, 1.4));
-    group.add(leftHand);
-    group.add(rightHand);
 
     camera.add(group);
 
@@ -670,200 +663,6 @@ function HandsAndWeapon({ camera, level, attackAnimRef }) {
   });
 
   return null;
-}
-
-function HUD({ game, onRestart, onNextLevel, isMobile, gyroEnabled, canExit }) {
-  const levelCfg = getLevelConfig(game.level);
-
-  return (
-    <>
-      <div
-        style={{
-          position: 'absolute',
-          left: 16,
-          top: 16,
-          color: 'white',
-          fontFamily: 'sans-serif',
-          zIndex: 20,
-          maxWidth: isMobile ? '58vw' : 'none',
-        }}
-      >
-        <div style={{ fontSize: 24, fontWeight: 800 }}>{game.name || 'Player'}</div>
-        <div>Livello: {game.level}</div>
-        <div>Punti: {game.score} / {levelCfg.requiredScore}</div>
-        <div>Mostri attivi: {game.enemies.length}</div>
-        <div>Vita: {game.health}</div>
-        <div>Scudi: {game.shieldsCount}</div>
-        <div>Portata arma: {levelCfg.attackRange.toFixed(1)}</div>
-        <div style={{ opacity: 0.85, marginTop: 8 }}>
-          {isMobile
-            ? `Pulsanti muovono • trascina a destra per guardare • pugno • gyro ${gyroEnabled ? 'ON' : 'OFF'}`
-            : 'WASD muovi • mouse guarda • F attacca'}
-        </div>
-        <div style={{ marginTop: 8, color: canExit ? '#8fffaa' : '#ffd3a1', fontWeight: 700 }}>
-          {canExit ? 'Uscita aperta: entra nella zona verde' : 'Raccogli abbastanza punti per aprire l’uscita'}
-        </div>
-        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.88 }}>
-          Tesori: giallo +1 • azzurro +2 • viola +3
-        </div>
-      </div>
-
-      {!isMobile && (
-        <div
-          style={{
-            position: 'absolute',
-            left: '50%',
-            bottom: 20,
-            transform: 'translateX(-50%)',
-            color: 'white',
-            fontFamily: 'sans-serif',
-            textAlign: 'center',
-            zIndex: 20,
-          }}
-        >
-          <div style={{ fontSize: 28 }}>+</div>
-        </div>
-      )}
-
-      {game.status === 'levelComplete' && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(0,0,0,0.78)',
-            display: 'grid',
-            placeItems: 'center',
-            color: 'white',
-            fontFamily: 'sans-serif',
-            textAlign: 'center',
-            padding: 24,
-            zIndex: 60,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 40, fontWeight: 900, marginBottom: 10 }}>
-              LIVELLO {game.level} COMPLETATO
-            </div>
-            <div style={{ lineHeight: 1.5, maxWidth: 640 }}>
-              Passi al livello {game.level + 1}. I mostri saranno più numerosi e veloci.
-              La tua arma guadagnerà più portata.
-              {game.level + 1 >= 3 ? ' Dal prossimo livello potranno comparire anche gli scudi.' : ''}
-            </div>
-            <button
-              onClick={onNextLevel}
-              style={{
-                marginTop: 18,
-                padding: '12px 18px',
-                background: '#ffffff',
-                border: 'none',
-                borderRadius: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Vai al livello successivo
-            </button>
-          </div>
-        </div>
-      )}
-
-      {game.status === 'lost' && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(0,0,0,0.8)',
-            display: 'grid',
-            placeItems: 'center',
-            color: 'white',
-            fontFamily: 'sans-serif',
-            textAlign: 'center',
-            padding: 24,
-            zIndex: 60,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: 42, fontWeight: 900, marginBottom: 12 }}>
-              TI HANNO PRESO!
-            </div>
-            <div style={{ maxWidth: 640, lineHeight: 1.5 }}>
-              Sei arrivato al livello {game.level}.
-            </div>
-            <button
-              onClick={onRestart}
-              style={{
-                marginTop: 18,
-                padding: '12px 18px',
-                background: '#ffffff',
-                border: 'none',
-                borderRadius: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Rigioca dal livello 1
-            </button>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-function Intro({ onStart, isMobile }) {
-  const [name, setName] = useState('');
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'grid',
-        placeItems: 'center',
-        background: 'radial-gradient(circle at top, #3c1d1d, #111)',
-        color: 'white',
-        fontFamily: 'sans-serif',
-        padding: 24,
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 760,
-          width: '100%',
-          background: 'rgba(0,0,0,0.55)',
-          border: '1px solid #ffffff20',
-          borderRadius: 20,
-          padding: 24,
-        }}
-      >
-        <h1 style={{ marginTop: 0, fontSize: 40 }}>SNAF Pizzeria Escape</h1>
-        <p>
-          Scappa dalla pizzeria, raccogli tesori, sopravvivi ai mostri e supera livelli sempre più difficili.
-        </p>
-        <p>
-          A ogni livello aumentano velocità e numero dei mostri. Dalla seconda arena ottieni un’arma più lunga.
-          Dal terzo livello possono apparire anche gli scudi.
-        </p>
-        {isMobile && (
-          <p style={{ color: '#cfe7ff' }}>
-            Su mobile: pulsantiera in basso a sinistra, attacco a destra, visuale laterale trascinando a destra.
-          </p>
-        )}
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Inserisci il tuo nome"
-          style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', marginTop: 12, fontSize: 16 }}
-        />
-        <button
-          onClick={() => onStart(name.trim() || 'Player')}
-          style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, border: 'none', fontWeight: 800, cursor: 'pointer' }}
-        >
-          Entra nella pizzeria
-        </button>
-      </div>
-    </div>
-  );
 }
 
 function CameraRig({ playerRef, isMobile, yawRef, level, attackAnimRef }) {
@@ -1014,7 +813,7 @@ function MobileControls({ mobileInputRef, gyroEnabled, onRequestGyro }) {
           WebkitUserSelect: 'none',
           color: 'white',
           fontWeight: 800,
-          fontSize: 22,
+          fontSize: 18,
         }}
         onTouchStart={(e) => {
           e.preventDefault();
@@ -1316,12 +1115,6 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
         <capsuleGeometry args={[0.4, 0.6, 4, 8]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
-
-      {game.status !== 'playing' && (
-        <Html position={[0, 8, 0]} center>
-          <div />
-        </Html>
-      )}
     </>
   );
 }
@@ -1329,7 +1122,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 function buildLevelState(name, level, previousState = null) {
   const cfg = getLevelConfig(level);
 
-  const pickups = Array.from({ length: PICKUP_COUNT + Math.min(level * 2, 12) }, (_, i) => {
+  const pickups = Array.from({ length: 18 + Math.min(level * 2, 12) }, (_, i) => {
     const pos = randomFreeSpot();
     const roll = Math.random();
     const value = roll < 0.55 ? 1 : roll < 0.85 ? 2 : 3;
@@ -1366,6 +1159,80 @@ function buildLevelState(name, level, previousState = null) {
   };
 }
 
+function Intro({ onStart, isMobile }) {
+  const [name, setName] = useState('');
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'grid',
+        placeItems: 'center',
+        background: 'radial-gradient(circle at top, #3c1d1d, #111)',
+        color: 'white',
+        fontFamily: 'sans-serif',
+        padding: 24,
+        zIndex: 100,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 760,
+          width: '100%',
+          background: 'rgba(0,0,0,0.55)',
+          border: '1px solid #ffffff20',
+          borderRadius: 20,
+          padding: 24,
+        }}
+      >
+        <h1 style={{ marginTop: 0, fontSize: 40 }}>SNAF Pizzeria Escape</h1>
+        <p>
+          Scappa dalla pizzeria, raccogli tesori, sopravvivi ai mostri e supera livelli sempre più difficili.
+        </p>
+        <p>
+          A ogni livello aumentano velocità e numero dei mostri. Dalla seconda arena ottieni un’arma più lunga.
+          Dal terzo livello possono apparire anche gli scudi.
+        </p>
+        {isMobile && (
+          <p style={{ color: '#cfe7ff' }}>
+            Su mobile: pulsantiera in basso a sinistra, attacco a destra, visuale laterale trascinando a destra.
+          </p>
+        )}
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Inserisci il tuo nome"
+          style={{
+            width: '100%',
+            padding: 14,
+            borderRadius: 12,
+            border: 'none',
+            marginTop: 12,
+            fontSize: 16,
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => onStart(name.trim() || 'Player')}
+          style={{
+            marginTop: 14,
+            padding: '14px 18px',
+            borderRadius: 12,
+            border: 'none',
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: '#ffffff',
+            color: '#111',
+          }}
+        >
+          Entra nella pizzeria
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [game, setGame] = useState(null);
   const [isMobile, setIsMobile] = useState(isProbablyMobileDevice());
@@ -1388,7 +1255,10 @@ export default function App() {
 
   const requestGyro = async () => {
     try {
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      if (
+        typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function'
+      ) {
         const result = await DeviceOrientationEvent.requestPermission();
         setGyroEnabled(result === 'granted');
       } else {
