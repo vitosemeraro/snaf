@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PointerLockControls, Html, Text } from '@react-three/drei';
@@ -12,11 +11,15 @@ const REQUIRED_SCORE = 10;
 const ENEMY_SPAWN_SECONDS = 8;
 const ENEMY_MAX = 5;
 
+// Apertura reale nel muro superiore in corrispondenza dell'uscita
 const WALLS = [
   { x: 0, z: -48, w: 96, d: 4 },
-  { x: 0, z: 48, w: 96, d: 4 },
   { x: -48, z: 0, w: 4, d: 96 },
   { x: 48, z: 0, w: 4, d: 96 },
+
+  // muro superiore spezzato: apertura verso destra
+  { x: -10, z: 48, w: 70, d: 4 },
+  { x: 34, z: 48, w: 16, d: 4 },
 
   { x: -18, z: 0, w: 4, d: 58 },
   { x: 16, z: -8, w: 4, d: 72 },
@@ -28,7 +31,8 @@ const WALLS = [
   { x: -4, z: -38, w: 26, d: 4 },
 ];
 
-const EXIT_ZONE = { x: 40, z: -40, w: 8, d: 8 };
+// Zona di uscita dentro il varco superiore
+const EXIT_ZONE = { x: 40, z: 44.5, w: 12, d: 7 };
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -48,13 +52,28 @@ function collidesWithWalls(x, z) {
 }
 
 function randomFreeSpot() {
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 500; i++) {
     const x = THREE.MathUtils.randFloatSpread(80);
     const z = THREE.MathUtils.randFloatSpread(80);
-    const blocked = collidesWithWalls(x, z) || rectContains(EXIT_ZONE, x, z, 3);
+    const blocked = collidesWithWalls(x, z) || rectContains(EXIT_ZONE, x, z, 5);
     if (!blocked) return { x, z };
   }
   return { x: 0, z: 0 };
+}
+
+function findSpawnNearPlayer(playerX, playerZ) {
+  let chosen = randomFreeSpot();
+
+  for (let i = 0; i < 20; i++) {
+    const candidate = randomFreeSpot();
+    const dist = Math.hypot(candidate.x - playerX, candidate.z - playerZ);
+    if (dist > 10 && dist < 26) {
+      chosen = candidate;
+      break;
+    }
+  }
+
+  return chosen;
 }
 
 function isProbablyMobileDevice() {
@@ -81,7 +100,22 @@ function Ground() {
   );
 }
 
-function Walls() {
+function Walls({ canExit }) {
+  const zoneMatRef = useRef();
+  const glowLightRef = useRef();
+
+  useFrame((state) => {
+    if (!canExit) return;
+    const wave = (Math.sin(state.clock.elapsedTime * 6) + 1) / 2;
+
+    if (zoneMatRef.current) {
+      zoneMatRef.current.opacity = 0.35 + wave * 0.35;
+    }
+    if (glowLightRef.current) {
+      glowLightRef.current.intensity = 1.8 + wave * 1.6;
+    }
+  });
+
   return (
     <group>
       {WALLS.map((wall, i) => (
@@ -90,10 +124,50 @@ function Walls() {
           <meshStandardMaterial color={i % 2 ? '#7b1e1e' : '#5a1010'} />
         </mesh>
       ))}
-      <mesh position={[EXIT_ZONE.x, 2.5, EXIT_ZONE.z]}>
-        <boxGeometry args={[EXIT_ZONE.w, 5, EXIT_ZONE.d]} />
-        <meshStandardMaterial color="#207d36" transparent opacity={0.35} />
+
+      <mesh position={[EXIT_ZONE.x, 0.05, EXIT_ZONE.z]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[EXIT_ZONE.w, EXIT_ZONE.d]} />
+        <meshBasicMaterial
+          ref={zoneMatRef}
+          color={canExit ? '#56e17f' : '#7a2020'}
+          transparent
+          opacity={canExit ? 0.55 : 0.25}
+          side={THREE.DoubleSide}
+        />
       </mesh>
+
+      {canExit && (
+        <>
+          <pointLight
+            ref={glowLightRef}
+            position={[EXIT_ZONE.x, 3.5, EXIT_ZONE.z]}
+            intensity={2.4}
+            distance={18}
+            color="#56e17f"
+          />
+          <Text
+            position={[EXIT_ZONE.x, 5.8, EXIT_ZONE.z]}
+            fontSize={1.5}
+            color="#8fffaa"
+            anchorX="center"
+            anchorY="middle"
+          >
+            EXIT OPEN
+          </Text>
+        </>
+      )}
+
+      {!canExit && (
+        <Text
+          position={[EXIT_ZONE.x, 5.8, EXIT_ZONE.z]}
+          fontSize={1.2}
+          color="#ffb0b0"
+          anchorX="center"
+          anchorY="middle"
+        >
+          COLLECT {REQUIRED_SCORE} POINTS
+        </Text>
+      )}
     </group>
   );
 }
@@ -133,6 +207,7 @@ function DecorativeProps() {
         <boxGeometry args={[18, 5, 1]} />
         <meshStandardMaterial color="#ffcc44" emissive="#aa5522" />
       </mesh>
+
       <Text position={[0, 2.7, -42.3]} fontSize={2.3} color="black">
         FREDBEAR PIZZA TEST
       </Text>
@@ -165,34 +240,64 @@ function Enemy({ enemy }) {
 
   useFrame((state) => {
     if (!ref.current) return;
-    ref.current.position.set(enemy.x, 1.5, enemy.z);
+    ref.current.position.set(enemy.x, 1.9, enemy.z);
     ref.current.rotation.y = enemy.rotation;
-    ref.current.position.y += Math.sin(state.clock.elapsedTime * 4 + enemy.id) * 0.06;
+    ref.current.position.y += Math.sin(state.clock.elapsedTime * 4 + enemy.id) * 0.08;
   });
 
   return (
     <group ref={ref}>
       <mesh castShadow>
-        <capsuleGeometry args={[0.8, 1.5, 4, 8]} />
-        <meshStandardMaterial color="#d5a46b" />
+        <capsuleGeometry args={[1.05, 2.1, 4, 8]} />
+        <meshStandardMaterial color="#d5a46b" emissive="#3a1a1a" emissiveIntensity={0.9} />
       </mesh>
-      <mesh position={[0, 1.2, 0.72]}>
-        <sphereGeometry args={[0.16, 12, 12]} />
-        <meshBasicMaterial color="black" />
+
+      <mesh position={[0, 1.45, 0.95]}>
+        <sphereGeometry args={[0.2, 12, 12]} />
+        <meshBasicMaterial color="#ff4040" />
       </mesh>
-      <mesh position={[0.45, 1.25, 0.62]}>
-        <sphereGeometry args={[0.16, 12, 12]} />
-        <meshBasicMaterial color="black" />
+
+      <mesh position={[0.5, 1.45, 0.82]}>
+        <sphereGeometry args={[0.2, 12, 12]} />
+        <meshBasicMaterial color="#ff4040" />
       </mesh>
-      <mesh position={[0.2, 2.2, 0]} rotation={[0, 0, -0.2]}>
-        <coneGeometry args={[0.35, 0.8, 12]} />
+
+      <mesh position={[0.24, 2.55, 0]} rotation={[0, 0, -0.2]}>
+        <coneGeometry args={[0.42, 1.0, 12]} />
         <meshStandardMaterial color="#7a4f1d" />
       </mesh>
-      <mesh position={[-0.2, 2.2, 0]} rotation={[0, 0, 0.2]}>
-        <coneGeometry args={[0.35, 0.8, 12]} />
+
+      <mesh position={[-0.24, 2.55, 0]} rotation={[0, 0, 0.2]}>
+        <coneGeometry args={[0.42, 1.0, 12]} />
         <meshStandardMaterial color="#7a4f1d" />
       </mesh>
+
+      <pointLight intensity={1.8} distance={7} color="#ff5c5c" />
     </group>
+  );
+}
+
+function EnemyLabels({ enemies, player }) {
+  return (
+    <>
+      {enemies.map((enemy) => {
+        const dist = Math.hypot(player.x - enemy.x, player.z - enemy.z);
+        if (dist > 14) return null;
+
+        return (
+          <Text
+            key={`enemy-label-${enemy.id}`}
+            position={[enemy.x, 4.6, enemy.z]}
+            fontSize={0.8}
+            color="#ff7a7a"
+            anchorX="center"
+            anchorY="middle"
+          >
+            {dist < 4 ? 'MOSTRO!' : 'Nemico'}
+          </Text>
+        );
+      })}
+    </>
   );
 }
 
@@ -237,6 +342,7 @@ function Minimap({ player, pickups, enemies, isMobile }) {
           width: EXIT_ZONE.w * scale,
           height: EXIT_ZONE.d * scale,
           border: '2px solid #56e17f',
+          background: 'rgba(86,225,127,0.25)',
         }}
       />
 
@@ -268,6 +374,7 @@ function Minimap({ player, pickups, enemies, isMobile }) {
             left: size / 2 + e.x * scale - 4,
             top: size / 2 + e.z * scale - 4,
             background: '#ff5c5c',
+            boxShadow: '0 0 10px #ff5c5c',
           }}
         />
       ))}
@@ -292,7 +399,7 @@ function Minimap({ player, pickups, enemies, isMobile }) {
   );
 }
 
-function HUD({ game, onRestart, isMobile, gyroEnabled }) {
+function HUD({ game, onRestart, isMobile, gyroEnabled, canExit }) {
   return (
     <>
       <div
@@ -314,6 +421,9 @@ function HUD({ game, onRestart, isMobile, gyroEnabled }) {
           {isMobile
             ? `Pulsanti muovono • trascina a destra per guardare • pugno • gyro ${gyroEnabled ? 'ON' : 'OFF'}`
             : 'WASD muovi • mouse guarda • F tira un pugno'}
+        </div>
+        <div style={{ marginTop: 8, color: canExit ? '#8fffaa' : '#ffd3a1', fontWeight: 700 }}>
+          {canExit ? 'Uscita aperta: entra nella zona verde' : 'Raccogli abbastanza punti per aprire l’uscita'}
         </div>
       </div>
 
@@ -696,6 +806,8 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
   const yawRef = useRef(0);
   const gyroBaseRef = useRef(null);
 
+  const canExit = game.score >= REQUIRED_SCORE;
+
   useEffect(() => {
     if (isMobile) return undefined;
 
@@ -842,7 +954,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
     const elapsed = state.clock.elapsedTime;
     if (elapsed - lastSpawnRef.current > ENEMY_SPAWN_SECONDS && nextEnemies.length < ENEMY_MAX) {
       lastSpawnRef.current = elapsed;
-      const spot = randomFreeSpot();
+      const spot = findSpawnNearPlayer(playerRef.current.position.x, playerRef.current.position.z);
       nextEnemies = nextEnemies.concat({
         id: Math.random().toString(36).slice(2),
         x: spot.x,
@@ -855,7 +967,10 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
     let nextStatus = game.status;
     if (nextHealth <= 0) nextStatus = 'lost';
 
-    if (game.score + gained >= REQUIRED_SCORE && rectContains(EXIT_ZONE, playerRef.current.position.x, playerRef.current.position.z, 0)) {
+    if (
+      canExit &&
+      rectContains(EXIT_ZONE, playerRef.current.position.x, playerRef.current.position.z, 0.35)
+    ) {
       nextStatus = 'won';
     }
 
@@ -876,14 +991,19 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
   return (
     <>
       <CameraRig playerRef={playerRef} isMobile={isMobile} yawRef={yawRef} />
-      <ambientLight intensity={0.55} />
-      <directionalLight position={[10, 16, 5]} intensity={1.4} castShadow />
+      <ambientLight intensity={0.75} />
+      <directionalLight position={[10, 16, 5]} intensity={1.6} castShadow />
+      <pointLight position={[0, 6, -20]} intensity={1.1} distance={35} color="#ffb366" />
       <fog attach="fog" args={['#130c0c', 35, 90]} />
+
       <Ground />
-      <Walls />
+      <Walls canExit={canExit} />
       <DecorativeProps />
+
       {game.pickups.map((item) => <Pickup key={item.id} item={item} />)}
       {game.enemies.map((enemy) => <Enemy key={enemy.id} enemy={enemy} />)}
+      <EnemyLabels enemies={game.enemies} player={game.player} />
+
       <mesh ref={playerRef} visible={false}>
         <capsuleGeometry args={[0.4, 0.6, 4, 8]} />
         <meshBasicMaterial transparent opacity={0} />
@@ -979,6 +1099,7 @@ export default function App() {
         onRestart={() => setGame(createGame(game.name))}
         isMobile={isMobile}
         gyroEnabled={gyroEnabled}
+        canExit={game.score >= REQUIRED_SCORE}
       />
 
       <Minimap
