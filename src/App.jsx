@@ -1188,6 +1188,121 @@ function Intro({ onStart, isMobile }) {
     </div>
   );
 }
+function Minimap({ player, pickups, shields, enemies, isMobile }) {
+  const size = isMobile ? 132 : 180;
+  const scale = size / MAP_W;
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        right: isMobile ? 10 : 16,
+        top: isMobile ? 10 : 16,
+        width: size,
+        height: size,
+        background: 'rgba(0,0,0,0.72)',
+        border: '2px solid #ffffff33',
+        borderRadius: 10,
+        overflow: 'hidden',
+        zIndex: 20,
+      }}
+    >
+      {WALLS.map((w, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            left: size / 2 + (w.x - w.w / 2) * scale,
+            top: size / 2 + (w.z - w.d / 2) * scale,
+            width: w.w * scale,
+            height: w.d * scale,
+            background: '#8f2a2a',
+          }}
+        />
+      ))}
+
+      <div
+        style={{
+          position: 'absolute',
+          left: size / 2 + (EXIT_ZONE.x - EXIT_ZONE.w / 2) * scale,
+          top: size / 2 + (EXIT_ZONE.z - EXIT_ZONE.d / 2) * scale,
+          width: EXIT_ZONE.w * scale,
+          height: EXIT_ZONE.d * scale,
+          border: '2px solid #56e17f',
+          background: 'rgba(86,225,127,0.25)',
+        }}
+      />
+
+      {pickups.filter((p) => !p.collected).map((p) => {
+        const color =
+          p.value === 3 ? '#8a5cff' :
+          p.value === 2 ? '#44d6ff' :
+          '#ffd84d';
+
+        return (
+          <div
+            key={p.id}
+            style={{
+              position: 'absolute',
+              width: 6 + p.value,
+              height: 6 + p.value,
+              borderRadius: 999,
+              left: size / 2 + p.x * scale - (3 + p.value / 2),
+              top: size / 2 + p.z * scale - (3 + p.value / 2),
+              background: color,
+              boxShadow: `0 0 8px ${color}`,
+            }}
+          />
+        );
+      })}
+
+      {shields.filter((s) => !s.collected).map((s) => (
+        <div
+          key={s.id}
+          style={{
+            position: 'absolute',
+            width: 10,
+            height: 10,
+            borderRadius: 999,
+            left: size / 2 + s.x * scale - 5,
+            top: size / 2 + s.z * scale - 5,
+            background: '#66b8ff',
+            boxShadow: '0 0 10px #66b8ff',
+          }}
+        />
+      ))}
+
+      {enemies.map((e) => (
+        <div
+          key={e.id}
+          style={{
+            position: 'absolute',
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            left: size / 2 + e.x * scale - 4,
+            top: size / 2 + e.z * scale - 4,
+            background: '#ff5c5c',
+            boxShadow: '0 0 10px #ff5c5c',
+          }}
+        />
+      ))}
+
+      <div
+        style={{
+          position: 'absolute',
+          width: 10,
+          height: 10,
+          borderRadius: 999,
+          left: size / 2 + player.x * scale - 5,
+          top: size / 2 + player.z * scale - 5,
+          background: '#67b7ff',
+          boxShadow: '0 0 8px #67b7ff',
+        }}
+      />
+    </div>
+  );
+}
 
 export default function App() {
   const [game, setGame] = useState(null);
