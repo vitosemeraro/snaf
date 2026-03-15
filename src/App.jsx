@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PointerLockControls, Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -46,7 +46,7 @@ function collidesWithWalls(x, z) {
 }
 
 function randomFreeSpot() {
-  for (let i = 0; i < 500; i++) {
+  for (let i = 0; i < 400; i++) {
     const x = THREE.MathUtils.randFloatSpread(80);
     const z = THREE.MathUtils.randFloatSpread(80);
     const blocked =
@@ -62,7 +62,7 @@ function randomFreeSpot() {
 function findSpawnNearPlayer(playerX, playerZ) {
   let chosen = randomFreeSpot();
 
-  for (let i = 0; i < 25; i++) {
+  for (let i = 0; i < 20; i++) {
     const candidate = randomFreeSpot();
     const dist = Math.hypot(candidate.x - playerX, candidate.z - playerZ);
     if (dist > 10 && dist < 26) {
@@ -87,70 +87,43 @@ function getLevelConfig(level) {
   return {
     level,
     requiredScore: BASE_REQUIRED_SCORE + (level - 1) * 3,
-    enemyMax: Math.min(4 + level * 2, 20),
-    enemySpawnSeconds: Math.max(7 - level * 0.45, 2.2),
-    enemySpeedIdle: 3.4 + level * 0.25,
-    enemySpeedAlert: 5.2 + level * 0.55,
-    attackRange: 2.8 + (level - 1) * 1.15,
-    attackCooldown: Math.max(0.6 - (level - 1) * 0.03, 0.28),
-    shieldSpawnCount: level >= 3 ? Math.min(1 + Math.floor((level - 3) / 2), 4) : 0,
+    enemyMax: Math.min(4 + level * 2, 18),
+    enemySpawnSeconds: Math.max(7 - level * 0.45, 2.4),
+    enemySpeedIdle: 3.2 + level * 0.22,
+    enemySpeedAlert: 4.8 + level * 0.48,
+    attackRange: 2.8 + (level - 1) * 1.1,
+    attackCooldown: Math.max(0.62 - (level - 1) * 0.03, 0.3),
+    shieldSpawnCount: level >= 3 ? Math.min(1 + Math.floor((level - 3) / 2), 3) : 0,
   };
 }
 
 function Ground() {
-  const tiles = [];
-  for (let x = -50; x < 50; x += 5) {
-    for (let z = -50; z < 50; z += 5) {
-      const isWhite = (Math.floor((x + 50) / 5) + Math.floor((z + 50) / 5)) % 2 === 0;
-      tiles.push(
-        <mesh
-          key={`${x}-${z}`}
-          position={[x + 2.5, 0, z + 2.5]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          receiveShadow
-        >
-          <planeGeometry args={[5, 5]} />
-          <meshStandardMaterial color={isWhite ? '#f0f0ea' : '#0f1014'} />
-        </mesh>
-      );
-    }
-  }
-
   return (
     <group>
-      {tiles}
-      <mesh position={[0, -0.03, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[110, 110]} />
-        <meshStandardMaterial color="#111" transparent opacity={0.18} />
+        <meshStandardMaterial color="#d9d9d9" />
       </mesh>
-    </group>
-  );
-}
 
-function CeilingLights() {
-  const lights = [
-    [-25, 5.8, -25],
-    [0, 5.8, -25],
-    [25, 5.8, -25],
-    [-25, 5.8, 5],
-    [0, 5.8, 5],
-    [25, 5.8, 5],
-    [-25, 5.8, 35],
-    [0, 5.8, 35],
-    [25, 5.8, 35],
-  ];
+      {Array.from({ length: 20 }).map((_, ix) =>
+        Array.from({ length: 20 }).map((_, iz) => {
+          const x = -47.5 + ix * 5;
+          const z = -47.5 + iz * 5;
+          const dark = (ix + iz) % 2 === 0;
 
-  return (
-    <group>
-      {lights.map((pos, i) => (
-        <group key={i} position={pos}>
-          <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[8, 4]} />
-            <meshBasicMaterial color="#ffd89c" />
-          </mesh>
-          <pointLight intensity={1.2} distance={26} color="#ffd89c" />
-        </group>
-      ))}
+          return (
+            <mesh
+              key={`${ix}-${iz}`}
+              position={[x, 0.01, z]}
+              rotation={[-Math.PI / 2, 0, 0]}
+              receiveShadow
+            >
+              <planeGeometry args={[5, 5]} />
+              <meshBasicMaterial color={dark ? '#111217' : '#f1f1eb'} />
+            </mesh>
+          );
+        })
+      )}
     </group>
   );
 }
@@ -163,7 +136,7 @@ function Walls({ canExit }) {
     if (!canExit) return;
     const wave = (Math.sin(state.clock.elapsedTime * 6) + 1) / 2;
     if (zoneMatRef.current) zoneMatRef.current.opacity = 0.35 + wave * 0.3;
-    if (glowLightRef.current) glowLightRef.current.intensity = 1.8 + wave * 1.5;
+    if (glowLightRef.current) glowLightRef.current.intensity = 1.4 + wave * 1.0;
   });
 
   return (
@@ -217,14 +190,14 @@ function Walls({ canExit }) {
         <>
           <pointLight
             ref={glowLightRef}
-            position={[EXIT_ZONE.x, 3.5, EXIT_ZONE.z]}
-            intensity={2.2}
-            distance={18}
+            position={[EXIT_ZONE.x, 3.2, EXIT_ZONE.z]}
+            intensity={1.8}
+            distance={14}
             color="#56e17f"
           />
           <Text
-            position={[EXIT_ZONE.x, 5.7, EXIT_ZONE.z]}
-            fontSize={1.45}
+            position={[EXIT_ZONE.x, 5.4, EXIT_ZONE.z]}
+            fontSize={1.2}
             color="#8fffaa"
             anchorX="center"
             anchorY="middle"
@@ -247,13 +220,6 @@ function KitchenInspiredScene() {
     [6, 1.4, 4],
   ];
 
-  const displaySides = [
-    [-36, 1.4, -4],
-    [36, 1.4, -4],
-    [-36, 1.4, 18],
-    [36, 1.4, 18],
-  ];
-
   return (
     <group>
       <mesh position={[0, 0.75, 2]} castShadow receiveShadow>
@@ -271,50 +237,20 @@ function KitchenInspiredScene() {
         <meshStandardMaterial color="#6a4a2d" />
       </mesh>
 
-      <mesh position={[-4, 3.2, -43.8]}>
-        <boxGeometry args={[2.8, 4.2, 0.35]} />
-        <meshStandardMaterial color="#3d214b" />
-      </mesh>
-      <mesh position={[0, 3.2, -43.8]}>
-        <boxGeometry args={[2.8, 4.2, 0.35]} />
-        <meshStandardMaterial color="#24182d" />
-      </mesh>
-      <mesh position={[4, 3.2, -43.8]}>
-        <boxGeometry args={[2.8, 4.2, 0.35]} />
-        <meshStandardMaterial color="#3d214b" />
-      </mesh>
-
-      {displaySides.map(([x, y, z], i) => (
-        <group key={i} position={[x, y, z]}>
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={[10, 2.2, 4]} />
-            <meshStandardMaterial color="#f2f2f2" />
-          </mesh>
-          <mesh position={[0, -0.9, 0]}>
-            <boxGeometry args={[10.2, 0.4, 4.2]} />
-            <meshStandardMaterial color="#6a5137" />
-          </mesh>
-        </group>
-      ))}
-
       {cakes.map(([x, y, z], i) => (
         <group key={i} position={[x, y, z]}>
           <mesh castShadow>
-            <cylinderGeometry args={[1.15, 1.15, 0.6, 16]} />
+            <cylinderGeometry args={[1.15, 1.15, 0.6, 12]} />
             <meshStandardMaterial color="#a9582a" />
           </mesh>
           <mesh position={[0, 0.33, 0]}>
-            <cylinderGeometry args={[1.12, 1.12, 0.18, 16]} />
+            <cylinderGeometry args={[1.12, 1.12, 0.18, 12]} />
             <meshStandardMaterial color="#f6f1ea" />
-          </mesh>
-          <mesh position={[0, 0.46, 0]}>
-            <sphereGeometry args={[0.13, 8, 8]} />
-            <meshStandardMaterial color="#d12c2c" />
           </mesh>
         </group>
       ))}
 
-      <Text position={[0, 5.6, -40.8]} fontSize={1.9} color="#ffd36d">
+      <Text position={[0, 5.4, -40.8]} fontSize={1.5} color="#ffd36d">
         SNAF PIZZERIA
       </Text>
     </group>
@@ -326,8 +262,8 @@ function Pickup({ item }) {
 
   useFrame((state) => {
     if (!ref.current) return;
-    ref.current.rotation.y += state.clock.getDelta() * 1.5;
-    ref.current.position.y = 1.05 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.18;
+    ref.current.rotation.y += state.clock.getDelta() * 1.8;
+    ref.current.position.y = 1.4 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.22;
   });
 
   if (item.collected) return null;
@@ -337,26 +273,24 @@ function Pickup({ item }) {
     item.value === 2 ? '#44d6ff' :
     '#ffd84d';
 
-  const emissive =
-    item.value === 3 ? '#35107a' :
-    item.value === 2 ? '#0b5670' :
-    '#b87900';
-
   const size =
-    item.value === 3 ? 1.0 :
-    item.value === 2 ? 0.82 :
-    0.7;
+    item.value === 3 ? 1.35 :
+    item.value === 2 ? 1.15 :
+    0.95;
 
   return (
-    <group ref={ref} position={[item.x, 1.1, item.z]}>
+    <group ref={ref} position={[item.x, 1.4, item.z]}>
       <mesh castShadow>
         <octahedronGeometry args={[size, 0]} />
-        <meshStandardMaterial color={color} emissive={emissive} emissiveIntensity={1.2} />
+        <meshBasicMaterial color={color} />
       </mesh>
-      <pointLight intensity={0.9} distance={5} color={color} />
-      <Text position={[0, 1.1, 0]} fontSize={0.48} color="white" anchorX="center" anchorY="middle">
-        +{item.value}
-      </Text>
+
+      <mesh>
+        <sphereGeometry args={[size * 0.55, 12, 12]} />
+        <meshBasicMaterial color={color} transparent opacity={0.18} />
+      </mesh>
+
+      <pointLight intensity={1.2} distance={6} color={color} />
     </group>
   );
 }
@@ -366,7 +300,7 @@ function ShieldPickup({ item }) {
 
   useFrame((state) => {
     if (!ref.current) return;
-    ref.current.rotation.y += state.clock.getDelta() * 1.9;
+    ref.current.rotation.y += state.clock.getDelta() * 1.8;
     ref.current.position.y = 1.25 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.16;
   });
 
@@ -375,17 +309,10 @@ function ShieldPickup({ item }) {
   return (
     <group ref={ref} position={[item.x, 1.2, item.z]}>
       <mesh>
-        <cylinderGeometry args={[0.9, 0.9, 0.2, 20]} />
-        <meshStandardMaterial color="#66b8ff" emissive="#17456a" emissiveIntensity={1.1} />
-      </mesh>
-      <mesh position={[0, 0, 0.12]}>
-        <ringGeometry args={[0.2, 0.52, 18]} />
-        <meshBasicMaterial color="#d4f0ff" side={THREE.DoubleSide} />
+        <cylinderGeometry args={[0.9, 0.9, 0.2, 16]} />
+        <meshStandardMaterial color="#66b8ff" emissive="#17456a" emissiveIntensity={1.0} />
       </mesh>
       <pointLight intensity={0.9} distance={5} color="#66b8ff" />
-      <Text position={[0, 1.0, 0]} fontSize={0.42} color="white" anchorX="center" anchorY="middle">
-        SHIELD
-      </Text>
     </group>
   );
 }
@@ -426,58 +353,132 @@ function Enemy({ enemy }) {
       </mesh>
 
       <mesh position={[-0.26, 2.95, 0.58]}>
-        <sphereGeometry args={[0.14, 12, 12]} />
+        <sphereGeometry args={[0.14, 10, 10]} />
         <meshBasicMaterial color="#ff3b3b" />
       </mesh>
       <mesh position={[0.26, 2.95, 0.58]}>
-        <sphereGeometry args={[0.14, 12, 12]} />
+        <sphereGeometry args={[0.14, 10, 10]} />
         <meshBasicMaterial color="#ff3b3b" />
       </mesh>
 
-      <mesh position={[-1.05, 1.55, 0]}>
-        <boxGeometry args={[0.35, 1.4, 0.35]} />
-        <meshBasicMaterial color={baseColor} />
-      </mesh>
-      <mesh position={[1.05, 1.55, 0]}>
-        <boxGeometry args={[0.35, 1.4, 0.35]} />
-        <meshBasicMaterial color={baseColor} />
-      </mesh>
-
-      <mesh position={[-0.4, 0.2, 0]}>
-        <boxGeometry args={[0.42, 1.4, 0.42]} />
-        <meshBasicMaterial color="#6b4120" />
-      </mesh>
-      <mesh position={[0.4, 0.2, 0]}>
-        <boxGeometry args={[0.42, 1.4, 0.42]} />
-        <meshBasicMaterial color="#6b4120" />
-      </mesh>
-
-      <pointLight intensity={2.2} distance={8} color="#ff5c5c" />
+      <pointLight intensity={1.8} distance={7} color="#ff5c5c" />
     </group>
   );
 }
 
-function EnemyLabels({ enemies, player }) {
+function Minimap({ player, pickups, shields, enemies, isMobile }) {
+  const size = isMobile ? 132 : 180;
+  const scale = size / MAP_W;
+
   return (
-    <>
-      {enemies.map((enemy) => {
-        const dist = Math.hypot(player.x - enemy.x, player.z - enemy.z);
-        if (dist > 14) return null;
+    <div
+      style={{
+        position: 'absolute',
+        right: isMobile ? 10 : 16,
+        top: isMobile ? 10 : 16,
+        width: size,
+        height: size,
+        background: 'rgba(0,0,0,0.72)',
+        border: '2px solid #ffffff33',
+        borderRadius: 10,
+        overflow: 'hidden',
+        zIndex: 20,
+      }}
+    >
+      {WALLS.map((w, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            left: size / 2 + (w.x - w.w / 2) * scale,
+            top: size / 2 + (w.z - w.d / 2) * scale,
+            width: w.w * scale,
+            height: w.d * scale,
+            background: '#8f2a2a',
+          }}
+        />
+      ))}
+
+      <div
+        style={{
+          position: 'absolute',
+          left: size / 2 + (EXIT_ZONE.x - EXIT_ZONE.w / 2) * scale,
+          top: size / 2 + (EXIT_ZONE.z - EXIT_ZONE.d / 2) * scale,
+          width: EXIT_ZONE.w * scale,
+          height: EXIT_ZONE.d * scale,
+          border: '2px solid #56e17f',
+          background: 'rgba(86,225,127,0.25)',
+        }}
+      />
+
+      {pickups.filter((p) => !p.collected).map((p) => {
+        const color =
+          p.value === 3 ? '#8a5cff' :
+          p.value === 2 ? '#44d6ff' :
+          '#ffd84d';
 
         return (
-          <Text
-            key={`enemy-label-${enemy.id}`}
-            position={[enemy.x, 4.9, enemy.z]}
-            fontSize={0.8}
-            color="#ff7a7a"
-            anchorX="center"
-            anchorY="middle"
-          >
-            {dist < 4 ? 'MOSTRO!' : 'Nemico'}
-          </Text>
+          <div
+            key={p.id}
+            style={{
+              position: 'absolute',
+              width: 6 + p.value,
+              height: 6 + p.value,
+              borderRadius: 999,
+              left: size / 2 + p.x * scale - (3 + p.value / 2),
+              top: size / 2 + p.z * scale - (3 + p.value / 2),
+              background: color,
+              boxShadow: `0 0 8px ${color}`,
+            }}
+          />
         );
       })}
-    </>
+
+      {shields.filter((s) => !s.collected).map((s) => (
+        <div
+          key={s.id}
+          style={{
+            position: 'absolute',
+            width: 10,
+            height: 10,
+            borderRadius: 999,
+            left: size / 2 + s.x * scale - 5,
+            top: size / 2 + s.z * scale - 5,
+            background: '#66b8ff',
+            boxShadow: '0 0 10px #66b8ff',
+          }}
+        />
+      ))}
+
+      {enemies.map((e) => (
+        <div
+          key={e.id}
+          style={{
+            position: 'absolute',
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            left: size / 2 + e.x * scale - 4,
+            top: size / 2 + e.z * scale - 4,
+            background: '#ff5c5c',
+            boxShadow: '0 0 10px #ff5c5c',
+          }}
+        />
+      ))}
+
+      <div
+        style={{
+          position: 'absolute',
+          width: 10,
+          height: 10,
+          borderRadius: 999,
+          left: size / 2 + player.x * scale - 5,
+          top: size / 2 + player.z * scale - 5,
+          background: '#67b7ff',
+          boxShadow: '0 0 8px #67b7ff',
+        }}
+      />
+    </div>
   );
 }
 
@@ -499,14 +500,14 @@ function HandsAndWeapon({ camera, level, attackAnimRef }) {
       new THREE.MeshStandardMaterial({ color: '#f1c27d' })
     );
 
-    group.add(new THREE.AmbientLight(0xffffff, 1.4));
+    group.add(new THREE.AmbientLight(0xffffff, 1.2));
     group.add(leftHand);
     group.add(rightHand);
 
     let weapon = null;
     if (level >= 2) {
       weapon = new THREE.Mesh(
-        new THREE.BoxGeometry(0.14, 0.14, 0.9 + (level - 2) * 0.4),
+        new THREE.BoxGeometry(0.14, 0.14, 0.9 + (level - 2) * 0.35),
         new THREE.MeshStandardMaterial({ color: level >= 5 ? '#9fd7ff' : '#8f6a45' })
       );
       group.add(weapon);
@@ -775,9 +776,6 @@ function HUD({ game, onRestart, onNextLevel, isMobile, gyroEnabled, canExit }) {
           <div>
             <div style={{ fontSize: 40, fontWeight: 900, marginBottom: 10 }}>
               LIVELLO {game.level} COMPLETATO
-            </div>
-            <div style={{ lineHeight: 1.5, maxWidth: 640 }}>
-              Passi al livello {game.level + 1}. I mostri saranno più numerosi e veloci.
             </div>
             <button
               onClick={onNextLevel}
@@ -1059,19 +1057,18 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
         attackAnimRef={attackAnimRef}
       />
 
-      <ambientLight intensity={0.9} />
-      <directionalLight position={[10, 16, 5]} intensity={1.6} castShadow />
-      <fog attach="fog" args={['#1a171c', 45, 120]} />
+      <ambientLight intensity={0.75} />
+      <directionalLight position={[8, 14, 6]} intensity={1.1} castShadow />
+      <pointLight position={[0, 5, -18]} intensity={0.8} distance={26} color="#ffd89c" />
+      <fog attach="fog" args={['#1a171c', 55, 140]} />
 
       <Ground />
-      <CeilingLights />
       <Walls canExit={canExit} />
       <KitchenInspiredScene />
 
       {game.pickups.map((item) => <Pickup key={item.id} item={item} />)}
       {game.shieldPickups.map((item) => <ShieldPickup key={item.id} item={item} />)}
       {game.enemies.map((enemy) => <Enemy key={enemy.id} enemy={enemy} />)}
-      <EnemyLabels enemies={game.enemies} player={game.player} />
 
       <mesh ref={playerRef} visible={false}>
         <capsuleGeometry args={[0.4, 0.6, 4, 8]} />
@@ -1084,7 +1081,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
 function buildLevelState(name, level, previousState = null) {
   const cfg = getLevelConfig(level);
 
-  const pickups = Array.from({ length: 18 + Math.min(level * 2, 12) }, (_, i) => {
+  const pickups = Array.from({ length: 10 + Math.min(level * 2, 8) }, (_, i) => {
     const pos = randomFreeSpot();
     const roll = Math.random();
     const value = roll < 0.55 ? 1 : roll < 0.85 ? 2 : 3;
@@ -1185,121 +1182,6 @@ function Intro({ onStart, isMobile }) {
           Entra nella pizzeria
         </button>
       </div>
-    </div>
-  );
-}
-function Minimap({ player, pickups, shields, enemies, isMobile }) {
-  const size = isMobile ? 132 : 180;
-  const scale = size / MAP_W;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        right: isMobile ? 10 : 16,
-        top: isMobile ? 10 : 16,
-        width: size,
-        height: size,
-        background: 'rgba(0,0,0,0.72)',
-        border: '2px solid #ffffff33',
-        borderRadius: 10,
-        overflow: 'hidden',
-        zIndex: 20,
-      }}
-    >
-      {WALLS.map((w, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            left: size / 2 + (w.x - w.w / 2) * scale,
-            top: size / 2 + (w.z - w.d / 2) * scale,
-            width: w.w * scale,
-            height: w.d * scale,
-            background: '#8f2a2a',
-          }}
-        />
-      ))}
-
-      <div
-        style={{
-          position: 'absolute',
-          left: size / 2 + (EXIT_ZONE.x - EXIT_ZONE.w / 2) * scale,
-          top: size / 2 + (EXIT_ZONE.z - EXIT_ZONE.d / 2) * scale,
-          width: EXIT_ZONE.w * scale,
-          height: EXIT_ZONE.d * scale,
-          border: '2px solid #56e17f',
-          background: 'rgba(86,225,127,0.25)',
-        }}
-      />
-
-      {pickups.filter((p) => !p.collected).map((p) => {
-        const color =
-          p.value === 3 ? '#8a5cff' :
-          p.value === 2 ? '#44d6ff' :
-          '#ffd84d';
-
-        return (
-          <div
-            key={p.id}
-            style={{
-              position: 'absolute',
-              width: 6 + p.value,
-              height: 6 + p.value,
-              borderRadius: 999,
-              left: size / 2 + p.x * scale - (3 + p.value / 2),
-              top: size / 2 + p.z * scale - (3 + p.value / 2),
-              background: color,
-              boxShadow: `0 0 8px ${color}`,
-            }}
-          />
-        );
-      })}
-
-      {shields.filter((s) => !s.collected).map((s) => (
-        <div
-          key={s.id}
-          style={{
-            position: 'absolute',
-            width: 10,
-            height: 10,
-            borderRadius: 999,
-            left: size / 2 + s.x * scale - 5,
-            top: size / 2 + s.z * scale - 5,
-            background: '#66b8ff',
-            boxShadow: '0 0 10px #66b8ff',
-          }}
-        />
-      ))}
-
-      {enemies.map((e) => (
-        <div
-          key={e.id}
-          style={{
-            position: 'absolute',
-            width: 8,
-            height: 8,
-            borderRadius: 999,
-            left: size / 2 + e.x * scale - 4,
-            top: size / 2 + e.z * scale - 4,
-            background: '#ff5c5c',
-            boxShadow: '0 0 10px #ff5c5c',
-          }}
-        />
-      ))}
-
-      <div
-        style={{
-          position: 'absolute',
-          width: 10,
-          height: 10,
-          borderRadius: 999,
-          left: size / 2 + player.x * scale - 5,
-          top: size / 2 + player.z * scale - 5,
-          background: '#67b7ff',
-          boxShadow: '0 0 8px #67b7ff',
-        }}
-      />
     </div>
   );
 }
