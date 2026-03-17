@@ -28,6 +28,21 @@ const WALLS = [
   { x: -4, z: -38, w: 26, d: 4 },
 ];
 
+const TABLES = [
+  [-32, -28],
+  [-18, -28],
+  [18, -28],
+  [32, -28],
+  [-32, 28],
+  [-18, 28],
+  [18, 28],
+  [32, 28],
+  [-30, 6],
+  [30, 6],
+  [-12, 34],
+  [12, 34],
+];
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -45,14 +60,26 @@ function collidesWithWalls(x, z) {
   return WALLS.some((wall) => rectContains(wall, x, z, PLAYER_RADIUS));
 }
 
+function isInsideTableArea(x, z) {
+  return TABLES.some(([tx, tz]) =>
+    rectContains({ x: tx, z: tz, w: 5.2, d: 5.2 }, x, z, 1.4)
+  );
+}
+
+function isInsideCenterIsland(x, z) {
+  return rectContains({ x: 0, z: 2, w: 18, d: 10 }, x, z, 0.6);
+}
+
 function randomFreeSpot() {
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < 500; i++) {
     const x = THREE.MathUtils.randFloatSpread(80);
     const z = THREE.MathUtils.randFloatSpread(80);
+
     const blocked =
       collidesWithWalls(x, z) ||
       rectContains(EXIT_ZONE, x, z, 5) ||
-      rectContains({ x: 0, z: 0, w: 20, d: 12 }, x, z, 2);
+      isInsideCenterIsland(x, z) ||
+      isInsideTableArea(x, z);
 
     if (!blocked) return { x, z };
   }
@@ -250,6 +277,23 @@ function KitchenInspiredScene() {
         </group>
       ))}
 
+      {TABLES.map(([x, z], i) => (
+        <group key={`table-${i}`} position={[x, 0, z]}>
+          <mesh position={[0, 1.2, 0]} castShadow>
+            <cylinderGeometry args={[2.2, 2.2, 0.35, 12]} />
+            <meshStandardMaterial color="#d9d9d9" />
+          </mesh>
+          <mesh position={[0, 0.6, 0]} castShadow>
+            <cylinderGeometry args={[0.25, 0.25, 1.2, 10]} />
+            <meshStandardMaterial color="#777777" />
+          </mesh>
+          <mesh position={[0, 0.05, 0]} receiveShadow>
+            <cylinderGeometry args={[1.2, 1.2, 0.1, 10]} />
+            <meshStandardMaterial color="#6a5137" />
+          </mesh>
+        </group>
+      ))}
+
       <Text position={[0, 5.4, -40.8]} fontSize={1.5} color="#ffd36d">
         SNAF PIZZERIA
       </Text>
@@ -259,11 +303,23 @@ function KitchenInspiredScene() {
 
 function Pickup({ item }) {
   const ref = useRef();
+  const beamRef = useRef();
+  const floorGlowRef = useRef();
 
   useFrame((state) => {
     if (!ref.current) return;
+
+    const t = state.clock.elapsedTime;
     ref.current.rotation.y += state.clock.getDelta() * 1.8;
-    ref.current.position.y = 1.4 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.22;
+    ref.current.position.y = 2.25 + Math.sin(t * 2 + item.id) * 0.22;
+
+    if (beamRef.current) {
+      beamRef.current.material.opacity = 0.2 + ((Math.sin(t * 4 + item.id) + 1) / 2) * 0.18;
+    }
+
+    if (floorGlowRef.current) {
+      floorGlowRef.current.material.opacity = 0.14 + ((Math.sin(t * 3 + item.id) + 1) / 2) * 0.12;
+    }
   });
 
   if (item.collected) return null;
@@ -279,18 +335,34 @@ function Pickup({ item }) {
     0.95;
 
   return (
-    <group ref={ref} position={[item.x, 1.4, item.z]}>
-      <mesh castShadow>
-        <octahedronGeometry args={[size, 0]} />
-        <meshBasicMaterial color={color} />
+    <group position={[item.x, 0, item.z]}>
+      <mesh
+        ref={floorGlowRef}
+        position={[0, 0.08, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <circleGeometry args={[size * 1.1, 20]} />
+        <meshBasicMaterial color={color} transparent opacity={0.18} side={THREE.DoubleSide} />
       </mesh>
 
-      <mesh>
-        <sphereGeometry args={[size * 0.55, 12, 12]} />
-        <meshBasicMaterial color={color} transparent opacity={0.18} />
+      <mesh ref={beamRef} position={[0, 2.2, 0]}>
+        <cylinderGeometry args={[0.18, 0.32, 4.2, 10]} />
+        <meshBasicMaterial color={color} transparent opacity={0.28} />
       </mesh>
 
-      <pointLight intensity={1.2} distance={6} color={color} />
+      <group ref={ref} position={[0, 2.25, 0]}>
+        <mesh castShadow>
+          <octahedronGeometry args={[size, 0]} />
+          <meshBasicMaterial color={color} />
+        </mesh>
+
+        <mesh>
+          <sphereGeometry args={[size * 0.6, 12, 12]} />
+          <meshBasicMaterial color={color} transparent opacity={0.2} />
+        </mesh>
+
+        <pointLight intensity={1.25} distance={6} color={color} />
+      </group>
     </group>
   );
 }
@@ -301,13 +373,13 @@ function ShieldPickup({ item }) {
   useFrame((state) => {
     if (!ref.current) return;
     ref.current.rotation.y += state.clock.getDelta() * 1.8;
-    ref.current.position.y = 1.25 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.16;
+    ref.current.position.y = 1.8 + Math.sin(state.clock.elapsedTime * 2 + item.id) * 0.16;
   });
 
   if (item.collected) return null;
 
   return (
-    <group ref={ref} position={[item.x, 1.2, item.z]}>
+    <group ref={ref} position={[item.x, 1.8, item.z]}>
       <mesh>
         <cylinderGeometry args={[0.9, 0.9, 0.2, 16]} />
         <meshStandardMaterial color="#66b8ff" emissive="#17456a" emissiveIntensity={1.0} />
@@ -363,122 +435,6 @@ function Enemy({ enemy }) {
 
       <pointLight intensity={1.8} distance={7} color="#ff5c5c" />
     </group>
-  );
-}
-
-function Minimap({ player, pickups, shields, enemies, isMobile }) {
-  const size = isMobile ? 132 : 180;
-  const scale = size / MAP_W;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        right: isMobile ? 10 : 16,
-        top: isMobile ? 10 : 16,
-        width: size,
-        height: size,
-        background: 'rgba(0,0,0,0.72)',
-        border: '2px solid #ffffff33',
-        borderRadius: 10,
-        overflow: 'hidden',
-        zIndex: 20,
-      }}
-    >
-      {WALLS.map((w, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            left: size / 2 + (w.x - w.w / 2) * scale,
-            top: size / 2 + (w.z - w.d / 2) * scale,
-            width: w.w * scale,
-            height: w.d * scale,
-            background: '#8f2a2a',
-          }}
-        />
-      ))}
-
-      <div
-        style={{
-          position: 'absolute',
-          left: size / 2 + (EXIT_ZONE.x - EXIT_ZONE.w / 2) * scale,
-          top: size / 2 + (EXIT_ZONE.z - EXIT_ZONE.d / 2) * scale,
-          width: EXIT_ZONE.w * scale,
-          height: EXIT_ZONE.d * scale,
-          border: '2px solid #56e17f',
-          background: 'rgba(86,225,127,0.25)',
-        }}
-      />
-
-      {pickups.filter((p) => !p.collected).map((p) => {
-        const color =
-          p.value === 3 ? '#8a5cff' :
-          p.value === 2 ? '#44d6ff' :
-          '#ffd84d';
-
-        return (
-          <div
-            key={p.id}
-            style={{
-              position: 'absolute',
-              width: 6 + p.value,
-              height: 6 + p.value,
-              borderRadius: 999,
-              left: size / 2 + p.x * scale - (3 + p.value / 2),
-              top: size / 2 + p.z * scale - (3 + p.value / 2),
-              background: color,
-              boxShadow: `0 0 8px ${color}`,
-            }}
-          />
-        );
-      })}
-
-      {shields.filter((s) => !s.collected).map((s) => (
-        <div
-          key={s.id}
-          style={{
-            position: 'absolute',
-            width: 10,
-            height: 10,
-            borderRadius: 999,
-            left: size / 2 + s.x * scale - 5,
-            top: size / 2 + s.z * scale - 5,
-            background: '#66b8ff',
-            boxShadow: '0 0 10px #66b8ff',
-          }}
-        />
-      ))}
-
-      {enemies.map((e) => (
-        <div
-          key={e.id}
-          style={{
-            position: 'absolute',
-            width: 8,
-            height: 8,
-            borderRadius: 999,
-            left: size / 2 + e.x * scale - 4,
-            top: size / 2 + e.z * scale - 4,
-            background: '#ff5c5c',
-            boxShadow: '0 0 10px #ff5c5c',
-          }}
-        />
-      ))}
-
-      <div
-        style={{
-          position: 'absolute',
-          width: 10,
-          height: 10,
-          borderRadius: 999,
-          left: size / 2 + player.x * scale - 5,
-          top: size / 2 + player.z * scale - 5,
-          background: '#67b7ff',
-          boxShadow: '0 0 8px #67b7ff',
-        }}
-      />
-    </div>
   );
 }
 
@@ -944,7 +900,7 @@ function Scene({ game, setGame, isMobile, mobileInputRef, gyroEnabled }) {
     let gained = 0;
 
     nextPickups = nextPickups.map((p) => {
-      if (!p.collected && playerRef.current.position.distanceTo(new THREE.Vector3(p.x, 1.7, p.z)) < 2.2) {
+      if (!p.collected && playerRef.current.position.distanceTo(new THREE.Vector3(p.x, 1.7, p.z)) < 2.4) {
         gained += p.value;
         return { ...p, collected: true };
       }
